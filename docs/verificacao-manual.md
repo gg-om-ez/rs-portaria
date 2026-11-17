@@ -103,7 +103,28 @@ Sáb 08:30-14:00 a R$ 150,00/dia, 1 profissional.
 - [ ] Rascunho em 12x36 com mão de obra sobrescrita, trocado para Personalizado →
       o override é descartado e a linha volta ao valor calculado da nova escala.
 
-## 8. Registro de divergências
+## 8. Escala por função, campos em aberto e exclusão
+
+Antes de emitir em qualquer instância, preencha Configurações > Empresa > Dados e
+pagamento: com os valores de exemplo a emissão fica bloqueada no checklist.
+
+- [ ] Serviços: cartão 1 com Portaria diurna em 12x36, turno 07:00-19:00, 2
+      profissionais; "Adicionar função" e cartão 2 com função Personalizada
+      "Jardineiro", escala Personalizado, só sábado 08:00-12:00 a R$ 150,00.
+- [ ] Custos: portaria com alimentação, transporte, encargos e margem; jardineiro
+      a preço fechado de R$ 650,00 (150,00 x 52/12), sem acréscimos.
+- [ ] Trocar a escala de um cartão refaz só aquele cartão; "Remover" tira o cartão.
+- [ ] Local: marcar "A informar" no endereço desabilita o campo; o PDF mostra
+      "Local do serviço: A informar".
+- [ ] Pagamento: "A combinar" em formas de pagamento e vencimento; checklist aceita.
+- [ ] Revisão: a emissão fica bloqueada enquanto os dados da empresa forem os de
+      exemplo, com o item "Dados da empresa configurados" em vermelho.
+- [ ] Rascunho: a lixeira na coluna de etapas abre a confirmação; "Cancelar" fecha,
+      "Excluir rascunho" apaga e volta para a lista. Proposta emitida não tem lixeira.
+- [ ] Configurações > Catálogo > Funções: renomear "Portaria diurna (12x36)" para
+      "Portaria diurna" e conferir o nome novo nos cartões.
+
+## 9. Registro de divergências
 
 Anote aqui tudo que parecer errado, feio ou confuso durante a execução -
 especialmente sobre o visual do PDF, que é a próxima frente de trabalho

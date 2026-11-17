@@ -59,6 +59,7 @@ novas funcionalidades.
 - [x] Dados sensíveis isolados fora do repositório, em banco privado
 - [x] Exportação em PDF
 - [x] Escalas configuráveis (12x36, 6x1, 5x2, 4x3, diárias e personalizada)
+- [x] Escala própria para cada função, inclusive funções personalizadas
 
 ### Curto prazo
 - [ ] Reforço da postura de segurança da aplicação e do banco de dados
