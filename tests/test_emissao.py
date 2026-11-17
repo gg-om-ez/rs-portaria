@@ -4,11 +4,13 @@ from pathlib import Path
 import pytest
 
 from app import emissao, repo_catalogo as rcat, repo_clientes as rc, repo_propostas as rp
+from tests.conftest import configurar_empresa
 
 
 @pytest.fixture
 def proposta_pronta(conn):
     rcat.seed_inicial(conn)
+    configurar_empresa(conn)
     cid = rc.criar_cliente(conn, "Cliente Exemplo Ltda", "11.222.333/0001-81", "Av. Exemplo, 1000")
     pid = rp.criar_proposta(conn, "continuo")
     rp.definir_cliente(conn, pid, cid)
@@ -30,7 +32,7 @@ def test_proximo_numero_sequencial_por_ano(conn):
 def test_montar_snapshot_rascunho(conn, proposta_pronta):
     snap = emissao.montar_snapshot(conn, proposta_pronta)
     assert snap["numero"] == "RASCUNHO"
-    assert snap["empresa"]["cnpj"] == "11.444.777/0001-61"
+    assert snap["empresa"]["cnpj"] == "45.723.174/0001-10"  # empresa configurada pela fixture
     assert snap["cliente"]["razao_social"] == "Cliente Exemplo Ltda"
     assert snap["total_centavos"] == 2 * 185300
     assert snap["total_fmt"] == "3.706,00"

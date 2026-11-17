@@ -251,3 +251,15 @@ def seed_inicial(conn: sqlite3.Connection) -> None:
                 (nome, modo, dias, ordem),
             )
     conn.commit()
+
+
+# Campos da empresa que não podem sair no PDF com o valor de exemplo do seed.
+# O nome fica de fora: o do seed coincide com o nome real da empresa.
+CHAVES_EMPRESA_VERIFICADAS = ("empresa_cnpj", "empresa_endereco", "empresa_telefone",
+                              "empresa_email", "pagamento_pix", "pagamento_banco")
+
+
+def empresa_com_dados_de_exemplo(conn: sqlite3.Connection) -> list[str]:
+    """Chaves da empresa cujo valor vigente ainda é o de exemplo do seed."""
+    return [c for c in CHAVES_EMPRESA_VERIFICADAS
+            if parametro_vigente(conn, c) == _SEED_PARAMETROS[c]]

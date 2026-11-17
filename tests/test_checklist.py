@@ -150,3 +150,27 @@ def test_checklist_aceita_sentinelas(conn):
         "endereco_servico": "A informar", "duracao_meses": "A informar", "data_inicio": "A informar",
         "formas_pagamento": "A combinar", "vencimento": "A combinar"})
     assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is True
+
+
+# ---- dados de exemplo da empresa ----
+from app import repo_catalogo as rcat
+from tests.conftest import configurar_empresa
+
+ROTULO_EMPRESA = "Dados da empresa configurados (Configurações > Empresa)"
+
+
+def test_bloqueia_emissao_com_dados_de_exemplo(conn):
+    rcat.seed_inicial(conn)
+    pid = _completa_continuo(conn)
+    item = _rotulos(conn, pid)[ROTULO_EMPRESA]
+    assert item.critico and not item.ok and item.etapa == "revisao"
+    assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is False
+
+
+def test_nome_igual_ao_seed_nao_bloqueia(conn):
+    rcat.seed_inicial(conn)
+    configurar_empresa(conn)  # não mexe no nome
+    assert rcat.parametro_vigente(conn, "empresa_nome") == "RS PORTARIA E SERVICOS"
+    pid = _completa_continuo(conn)
+    assert _rotulos(conn, pid)[ROTULO_EMPRESA].ok
+    assert rcat.empresa_com_dados_de_exemplo(conn) == []

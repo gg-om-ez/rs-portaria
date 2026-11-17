@@ -190,3 +190,13 @@ def test_fluxo_escala_personalizada_ate_pdf(client, tmp_path, monkeypatch):
     assert snap["dados"]["data_inicio"] == "2026-12-01"
     assert {l["categoria"] for l in snap["linhas"]} == {"mao_de_obra", "manual"}
     assert (snap["escala"]["semanal_centavos"], snap["escala"]["mensal_centavos"]) == (75000, 325000)
+
+
+def test_emitir_bloqueado_com_dados_de_exemplo(client, tmp_path):
+    from app import repo_catalogo as rcat
+    pid, conn = _fluxo_ate_custos(client, tmp_path)
+    client.post(f"/propostas/{pid}/pagamento", data={"formas_pagamento": ["PIX"], "vencimento": "dia 05"})
+    # volta um campo ao valor de exemplo do seed
+    rcat.definir_parametro(conn, "pagamento_pix", "chave-pix@exemplo.com.br", "2026-01-03")
+    r = client.post(f"/propostas/{pid}/emitir", follow_redirects=False)
+    assert r.status_code == 200 and "Dados da empresa configurados" in r.text

@@ -3,6 +3,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from app import escalas
+from app import repo_catalogo as rcat
 from app import repo_clientes as rc
 from app import repo_propostas as rp
 
@@ -64,6 +65,9 @@ def avaliar(conn: sqlite3.Connection, pid: int) -> list[ItemChecklist]:
                           _tem(dados, "data_limite_pagamento"), True, "pagamento"),
         ]
     itens.append(ItemChecklist("Observações preenchidas", _tem(dados, "observacoes"), False, "servicos"))
+    # Bloqueia PDF com CNPJ, PIX etc. de exemplo (instância nunca configurada)
+    itens.append(ItemChecklist("Dados da empresa configurados (Configurações > Empresa)",
+                               not rcat.empresa_com_dados_de_exemplo(conn), True, "revisao"))
     return itens
 
 
@@ -80,7 +84,8 @@ def estado_etapas(itens: list[ItemChecklist], etapas: list[str], atual: str) -> 
     estados = {}
     for idx, etapa in enumerate(etapas):
         criticos = [i for i in itens if i.critico and i.etapa == etapa]
-        if not criticos:
+        # a Revisão já mostra o checklist inteiro; marca própria só confundiria
+        if not criticos or etapa == "revisao":
             estados[etapa] = ""
         elif all(i.ok for i in criticos):
             estados[etapa] = "ok"
