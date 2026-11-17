@@ -102,3 +102,18 @@ def test_parse_decimal_br(entrada, esperado):
 def test_parse_decimal_br_rejeita(entrada):
     with pytest.raises(ValueError):
         parse_decimal_br(entrada)
+
+
+from app.moeda import parse_percentual_campo
+
+
+@pytest.mark.parametrize("e,v", [("58", "0.58"), ("58%", "0.58"), ("58,5", "0.585"),
+                                 ("0,5%", "0.005"), (" 20 % ", "0.2")])
+def test_parse_percentual_campo(e, v):
+    assert parse_percentual_campo(e) == Decimal(v)
+
+
+@pytest.mark.parametrize("e", ["", "0.58", "0,58", "-5", "abc", "%"])
+def test_parse_percentual_campo_rejeita(e):
+    with pytest.raises(ValueError):
+        parse_percentual_campo(e)

@@ -71,3 +71,18 @@ def parse_decimal_br(texto: str) -> Decimal:
     if not re.fullmatch(r"\d+([.,]\d+)?", limpo):
         raise ValueError(f"Número inválido: {texto!r}")
     return Decimal(limpo.replace(",", "."))
+
+
+def parse_percentual_campo(texto: str) -> Decimal:
+    """Campo de percentual do admin: '58', '58%' ou '58,5' -> fração (Decimal('0.58')).
+    Sem '%', número abaixo de 1 é recusado: '0.58' quase sempre é a fração digitada
+    por engano e viraria 0,58%."""
+    limpo = texto.strip()
+    com_sinal = limpo.endswith("%")
+    numero = limpo.rstrip("%").strip().replace(",", ".")
+    if not re.fullmatch(r"\d+(\.\d+)?", numero):
+        raise ValueError("Percentual inválido. Use 58 ou 58%.")
+    valor = Decimal(numero)
+    if not com_sinal and valor < 1:
+        raise ValueError("Valor ambíguo. Use 58 ou 58% (não 0.58).")
+    return valor / 100

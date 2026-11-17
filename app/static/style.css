@@ -65,3 +65,31 @@ iframe.preview { width: 100%; height: 70vh; border: 1px solid var(--borda); bord
 .resumo-total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--borda-suave);
   padding-top: 10px; margin: 12px 0 0; }
 .resumo-total strong { font-size: 1.2rem; }
+
+/* Painel de configurações: menu por modalidade | seção */
+.admin { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.admin-menu { flex: 1 1 220px; max-width: 280px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 16px; }
+.admin-menu a { padding: 7px 10px; border-radius: 6px; text-decoration: none; color: var(--texto); }
+.admin-menu a:hover { background: var(--fundo); }
+.admin-menu a[aria-current="page"] { background: var(--neutro-claro); font-weight: 700; }
+.admin-grupo { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-suave); margin-top: 10px; }
+.admin-conteudo { flex: 999 1 560px; min-width: 0; }
+.admin-conteudo h1 { margin: 4px 0; }
+.lote-topo { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between;
+  border-bottom: 1px solid var(--borda-suave); padding-bottom: 12px; }
+.lote-topo p { flex: 1 1 260px; margin: 0; color: var(--texto-suave); }
+.lote-topo label { margin: 0; } .lote-topo input { width: 11em; }
+.lote-topo button { width: auto; margin: 0; }
+.param { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(140px, 1fr) minmax(200px, 2fr);
+  gap: 6px 16px; align-items: start; padding: 14px 0; border-bottom: 1px solid var(--borda-suave); }
+.param-longo { grid-template-columns: 1fr; }
+.param > .erro, .param > small, .param-historico { grid-column: 1 / -1; margin: 0; }
+.param-info { display: flex; flex-direction: column; gap: 2px; }
+.param-info span, .param-vigente small, .param > small { color: var(--texto-suave); font-size: .82rem; }
+.param-vigente span { color: var(--texto-suave); font-size: .82rem; display: block; }
+.param-novo { margin: 0; font-weight: 600; font-size: .85rem; }
+.param-alterado { display: none; font-size: .72rem; font-weight: 700; margin-top: 4px; }
+.param[data-alterado] .param-alterado { display: inline-block; }
+.param[data-alterado] input, .param[data-alterado] textarea { outline: 2px solid var(--marca-escura); outline-offset: 1px; }
+.param-erro input, .param-erro textarea { border-color: var(--erro); }
+.param-historico summary { cursor: pointer; font-size: .85rem; color: var(--texto-suave); }

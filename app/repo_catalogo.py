@@ -14,14 +14,33 @@ def definir_parametro(conn: sqlite3.Connection, chave: str, valor: str, vigencia
     conn.commit()
 
 
-def parametro_vigente(conn: sqlite3.Connection, chave: str, em: str | None = None) -> str | None:
+def vigencia_atual(conn: sqlite3.Connection, chave: str, em: str | None = None) -> sqlite3.Row | None:
+    """Linha vigente (valor e vigencia_inicio) de um parâmetro na data `em` (hoje se omitida)."""
     em = em or date.today().isoformat()
-    row = conn.execute(
-        "SELECT valor FROM parametros WHERE chave = ? AND vigencia_inicio <= ?"
+    return conn.execute(
+        "SELECT valor, vigencia_inicio FROM parametros WHERE chave = ? AND vigencia_inicio <= ?"
         " ORDER BY vigencia_inicio DESC, id DESC LIMIT 1",
         (chave, em),
     ).fetchone()
+
+
+def parametro_vigente(conn: sqlite3.Connection, chave: str, em: str | None = None) -> str | None:
+    row = vigencia_atual(conn, chave, em)
     return row["valor"] if row else None
+
+
+def definir_parametros(conn: sqlite3.Connection, valores: dict[str, str], vigencia_inicio: str) -> None:
+    """Grava várias vigências com a mesma data numa transação: todas ou nenhuma."""
+    try:
+        for chave, valor in valores.items():
+            conn.execute(
+                "INSERT INTO parametros (chave, valor, vigencia_inicio) VALUES (?, ?, ?)",
+                (chave, str(valor), vigencia_inicio),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def historico_parametro(conn: sqlite3.Connection, chave: str) -> list[sqlite3.Row]:

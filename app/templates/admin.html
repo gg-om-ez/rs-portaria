@@ -1,60 +1,97 @@
 {% extends "base.html" %}
 {% block conteudo %}
-<h1>Configurações</h1>
-{% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
-<p>Alterações criam uma <strong>nova vigência</strong> - propostas antigas não mudam.</p>
+<div class="admin">
+  <nav class="admin-menu cartao" aria-label="Seções de configuração">
+    {% for s in secoes %}
+      {% if loop.changed(s.grupo) %}<span class="admin-grupo">{{ s.grupo }}</span>{% endif %}
+      <a href="/admin?secao={{ s.id }}"{% if s.id == sec.id %} aria-current="page"{% endif %}>{{ s.titulo }}</a>
+    {% endfor %}
+  </nav>
 
-{% for p in parametros %}
-<form method="post" action="/admin/parametros" class="cartao" style="margin-bottom:8px">
-  <input type="hidden" name="chave" value="{{ p.chave }}">
-  <label>{{ p.rotulo }}
-    {% if p.longo %}<textarea name="valor" rows="4">{{ p.valor }}</textarea>
-    {% else %}<input name="valor" value="{{ p.valor }}">{% endif %}
-  </label>
-  <label>Vigente a partir de <input type="date" data-campo="data" name="vigencia_inicio" value="{{ hoje }}"></label>
-  <button class="mini">Salvar novo valor</button>
-</form>
-{% endfor %}
+  <div class="admin-conteudo">
+    <span class="admin-grupo">{{ sec.grupo }}</span>
+    <h1>{{ sec.titulo }}</h1>
+    <p>{{ sec.descricao }}</p>
+    {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
 
-<h2>Escalas</h2>
-<p>O modo de preço define como a mão de obra é calculada. Diária fechada não soma
-encargos, margem, alimentação nem transporte.</p>
+    {% if sec.campos %}
+    <form method="post" action="/admin/parametros/lote" class="cartao" data-lote>
+      <input type="hidden" name="secao" value="{{ sec.id }}">
+      <div class="lote-topo">
+        <p>Cada alteração cria uma nova vigência: propostas emitidas não mudam.</p>
+        <label>Alterações valem a partir de
+          <input type="date" data-campo="data" name="vigencia_inicio" value="{{ vigencia }}"></label>
+        <button data-botao-lote>Salvar alterações</button>
+      </div>
+      {% for item in campos %}{% set c = item.campo %}
+      <div class="param{{ ' param-longo' if c.tipo == 'texto_longo' }}{{ ' param-erro' if item.erro }}">
+        <div class="param-info"><strong>{{ c.rotulo }}</strong>{% if c.ajuda %}<span>{{ c.ajuda }}</span>{% endif %}</div>
+        {% if c.tipo not in ("texto", "texto_longo") %}
+        <div class="param-vigente"><span>Vigente</span> <strong>{{ item.vigente or "-" }}</strong>
+          {% if item.desde %}<small>desde {{ item.desde | data_br }}</small>{% endif %}</div>
+        {% endif %}
+        <label class="param-novo">Novo valor
+          {% if c.tipo == "texto_longo" %}
+          <textarea name="novo_{{ c.chave }}" rows="5" data-novo data-original="{{ item.original }}">{{ item.novo }}</textarea>
+          {% else %}
+          <input name="novo_{{ c.chave }}" value="{{ item.novo }}" data-novo data-original="{{ item.original }}"
+            placeholder="{{ item.vigente }}"{% if c.tipo in ('pct', 'brl', 'int') %} inputmode="decimal"{% endif %}>
+          {% endif %}
+          <span class="param-alterado">alterado</span>
+        </label>
+        {% if item.erro %}<p class="erro">{{ item.erro }}</p>{% endif %}
+        {% if c.tipo in ("texto", "texto_longo") and item.desde %}<small>Vigente desde {{ item.desde | data_br }}</small>{% endif %}
+        <details class="param-historico"><summary>Histórico ({{ item.historico | length }})</summary>
+          <table class="custos">
+            <tr><th>Vigente a partir de</th><th>Valor</th></tr>
+            {% for h in item.historico %}<tr><td>{{ h.vigencia_inicio | data_br }}</td><td>{{ exibir(c, h.valor) }}</td></tr>{% endfor %}
+          </table>
+        </details>
+      </div>
+      {% endfor %}
+    </form>
+    <script src="/static/admin.js" defer></script>
+
+    {% elif sec.id == "catalogo-escalas" %}
 {% for e in escalas %}
-<form method="post" action="/admin/escalas/{{ e.id }}" class="cartao" style="margin-bottom:8px">
-  <strong>{{ e.nome }}</strong>
-  {% if e.modo == "semanal" %}
-  <p>Valor por dia da semana, definido na proposta.</p>
-  {% else %}
-  <label>Modo de preço <select name="modo">
-    <option value="piso_mensal" {{ 'selected' if e.modo == 'piso_mensal' }}>Piso mensal (CLT)</option>
-    <option value="diaria" {{ 'selected' if e.modo == 'diaria' }}>Diária fechada</option>
-  </select></label>
-  <label>Dias trabalhados por mês (vazio = informado na proposta)
-    <input name="dias_mes" inputmode="decimal" value="{{ (e.dias_mes or '') | replace('.', ',') }}"></label>
-  <button class="mini">Atualizar</button>
-  {% endif %}
-</form>
-{% endfor %}
+    <form method="post" action="/admin/escalas/{{ e.id }}" class="cartao" style="margin-bottom:8px">
+      <strong>{{ e.nome }}</strong>
+      {% if e.modo == "semanal" %}
+      <p>Valor por dia da semana, definido na proposta.</p>
+      {% else %}
+      <label>Modo de preço <select name="modo">
+        <option value="piso_mensal" {{ 'selected' if e.modo == 'piso_mensal' }}>Piso mensal (CLT)</option>
+        <option value="diaria" {{ 'selected' if e.modo == 'diaria' }}>Diária fechada</option>
+      </select></label>
+      <label>Dias trabalhados por mês (vazio = informado na proposta)
+        <input name="dias_mes" inputmode="decimal" value="{{ (e.dias_mes or '') | replace('.', ',') }}"></label>
+      <button class="mini">Atualizar</button>
+      {% endif %}
+    </form>
+    {% endfor %}
 
-<h2>Funções do catálogo</h2>
+    {% elif sec.id == "catalogo-funcoes" %}
 {% for f in funcoes %}
-<form method="post" action="/admin/funcoes/{{ f.id }}" class="cartao" style="margin-bottom:8px">
-  <strong>{{ f.nome }}</strong> ({{ f.tipo }}{{ ", com adicional noturno" if f.aplica_noturno }})
-  <label>Valor-base (R$) <input name="valor_base" value="{{ f.valor_base_centavos | brl }}"></label>
-  <label style="font-weight:400"><input type="checkbox" name="ativa" style="width:auto"
-    {{ 'checked' if f.ativa }}> Ativa</label>
-  <button class="mini">Atualizar</button>
-</form>
-{% endfor %}
-
-<h2>Nova função</h2>
-<form method="post" action="/admin/funcoes" class="cartao">
-  <label>Nome <input name="nome" required placeholder="ex.: Recepcionista de evento (6h)"></label>
-  <label>Tipo <select name="tipo"><option value="continuo">Serviço contínuo</option>
-    <option value="evento">Evento</option></select></label>
-  <label>Valor-base (R$) <input name="valor_base" inputmode="decimal" required></label>
-  <label style="font-weight:400"><input type="checkbox" name="aplica_noturno" style="width:auto">
-    Aplica adicional noturno</label>
-  <button>Criar função</button>
-</form>
+    <form method="post" action="/admin/funcoes/{{ f.id }}" class="cartao" style="margin-bottom:8px">
+      <strong>{{ f.nome }}</strong> ({{ f.tipo }}{{ ", com adicional noturno" if f.aplica_noturno }})
+      <label>Valor-base (R$) <input name="valor_base" value="{{ f.valor_base_centavos | brl }}"></label>
+      <label style="font-weight:400"><input type="checkbox" name="ativa" style="width:auto"
+        {{ 'checked' if f.ativa }}> Ativa</label>
+      <button class="mini">Atualizar</button>
+    </form>
+    {% endfor %}
+    
+    <h2>Nova função</h2>
+    <form method="post" action="/admin/funcoes" class="cartao">
+      <label>Nome <input name="nome" required placeholder="ex.: Recepcionista de evento (6h)"></label>
+      <label>Tipo <select name="tipo"><option value="continuo">Serviço contínuo</option>
+        <option value="evento">Evento</option></select></label>
+      <label>Valor-base (R$) <input name="valor_base" inputmode="decimal" required></label>
+      <label style="font-weight:400"><input type="checkbox" name="aplica_noturno" style="width:auto">
+        Aplica adicional noturno</label>
+      <button>Criar função</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}
