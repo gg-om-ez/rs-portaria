@@ -62,3 +62,12 @@ def format_percentual(fracao: Decimal | str) -> str:
     """Decimal('0.055') -> '5,5%'."""
     valor = (Decimal(fracao) * 100).normalize()
     return format(valor, "f").replace(".", ",") + "%"
+
+
+def parse_decimal_br(texto: str) -> Decimal:
+    """'21,67' ou '21.67' -> Decimal('21.67'). Sem separador de milhar (uso em
+    quantidades pequenas, como dias trabalhados por mês)."""
+    limpo = texto.strip()
+    if not re.fullmatch(r"\d+([.,]\d+)?", limpo):
+        raise ValueError(f"Número inválido: {texto!r}")
+    return Decimal(limpo.replace(",", "."))

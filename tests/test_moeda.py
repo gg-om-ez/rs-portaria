@@ -87,3 +87,18 @@ def test_parse_percentual_rejeita(entrada):
     (Decimal("0.05"), "5%"), (Decimal("0.055"), "5,5%"), (Decimal("0.10"), "10%")])
 def test_format_percentual(entrada, esperado):
     assert format_percentual(entrada) == esperado
+
+
+from app.moeda import parse_decimal_br
+
+
+@pytest.mark.parametrize("entrada,esperado", [
+    ("21,67", Decimal("21.67")), ("21.67", Decimal("21.67")), (" 15 ", Decimal("15"))])
+def test_parse_decimal_br(entrada, esperado):
+    assert parse_decimal_br(entrada) == esperado
+
+
+@pytest.mark.parametrize("entrada", ["", "abc", "1,2,3", "-1"])
+def test_parse_decimal_br_rejeita(entrada):
+    with pytest.raises(ValueError):
+        parse_decimal_br(entrada)

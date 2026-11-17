@@ -16,6 +16,26 @@
 </form>
 {% endfor %}
 
+<h2>Escalas</h2>
+<p>O modo de preço define como a mão de obra é calculada. Diária fechada não soma
+encargos, margem, alimentação nem transporte.</p>
+{% for e in escalas %}
+<form method="post" action="/admin/escalas/{{ e.id }}" class="cartao" style="margin-bottom:8px">
+  <strong>{{ e.nome }}</strong>
+  {% if e.modo == "semanal" %}
+  <p>Valor por dia da semana, definido na proposta.</p>
+  {% else %}
+  <label>Modo de preço <select name="modo">
+    <option value="piso_mensal" {{ 'selected' if e.modo == 'piso_mensal' }}>Piso mensal (CLT)</option>
+    <option value="diaria" {{ 'selected' if e.modo == 'diaria' }}>Diária fechada</option>
+  </select></label>
+  <label>Dias trabalhados por mês (vazio = informado na proposta)
+    <input name="dias_mes" inputmode="decimal" value="{{ (e.dias_mes or '') | replace('.', ',') }}"></label>
+  <button class="mini">Atualizar</button>
+  {% endif %}
+</form>
+{% endfor %}
+
 <h2>Funções do catálogo</h2>
 {% for f in funcoes %}
 <form method="post" action="/admin/funcoes/{{ f.id }}" class="cartao" style="margin-bottom:8px">

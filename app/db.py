@@ -64,6 +64,16 @@ CREATE TABLE IF NOT EXISTS propostas (
 
 CREATE TABLE IF NOT EXISTS linhas_custo """ + _LINHAS_CUSTO_DDL + """;
 
+-- Catálogo mutável (como funcoes): o modo de preço define o cálculo da mão de obra
+CREATE TABLE IF NOT EXISTS escalas (
+    id INTEGER PRIMARY KEY,
+    nome TEXT NOT NULL UNIQUE,
+    modo TEXT NOT NULL CHECK (modo IN ('piso_mensal', 'diaria', 'semanal')),
+    dias_mes TEXT,  -- Decimal em texto; NULL = informado na proposta
+    ordem INTEGER NOT NULL,
+    ativa INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS sequencia_numeracao (
     ano INTEGER PRIMARY KEY,
     ultimo INTEGER NOT NULL

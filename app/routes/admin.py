@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse
 from app import repo_catalogo as rcat
 from app.datas import parse_data
 from app.db import conn_dep
-from app.moeda import format_brl, parse_brl
+from app.moeda import format_brl, parse_brl, parse_decimal_br
 from app.web import templates
 
 router = APIRouter(prefix="/admin")
@@ -48,6 +48,7 @@ def _render_painel(request: Request, conn, erro: str | None = None):
     return templates.TemplateResponse(request, "admin.html", {
         "parametros": parametros,
         "funcoes": rcat.listar_funcoes(conn, apenas_ativas=False),
+        "escalas": rcat.listar_escalas(conn, apenas_ativas=False),
         "hoje": date.today().isoformat(),
         "erro": erro,
     })
@@ -94,6 +95,20 @@ def atualizar_funcao(request: Request, fid: int, valor_base: str = Form(""),
     try:
         rcat.atualizar_funcao(conn, fid, valor_base_centavos=parse_brl(valor_base),
                               ativa=int(bool(ativa)))
+    except ValueError as exc:
+        return _render_painel(request, conn, erro=str(exc))
+    return RedirectResponse("/admin", status_code=303)
+
+
+@router.post("/escalas/{eid}")
+def atualizar_escala(request: Request, eid: int, modo: str = Form(...),
+                     dias_mes: str = Form(""), conn=Depends(conn_dep)):
+    try:
+        try:
+            dias = parse_decimal_br(dias_mes) if dias_mes.strip() else None
+        except ValueError:
+            raise ValueError("Dias trabalhados por mês inválido.")
+        rcat.atualizar_escala(conn, eid, modo, dias)
     except ValueError as exc:
         return _render_painel(request, conn, erro=str(exc))
     return RedirectResponse("/admin", status_code=303)

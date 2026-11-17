@@ -39,3 +39,47 @@ def test_seed_idempotente(conn):
     assert rcat.parametro_vigente(conn, "empresa_nome") == "RS PORTARIA E SERVICOS"
     assert len(rcat.listar_funcoes(conn)) == 5
     assert len(rcat.historico_parametro(conn, "empresa_nome")) == 1
+
+
+# ---- escalas ----
+import pytest
+
+
+def _escala(conn, nome):
+    return [e for e in rcat.listar_escalas(conn) if e["nome"] == nome][0]
+
+
+def test_seed_escalas(conn):
+    rcat.seed_inicial(conn)
+    esc = rcat.listar_escalas(conn)
+    assert [e["nome"] for e in esc] == ["12x36", "6x1", "5x2", "4x3", "Diárias por escala", "Personalizado"]
+    assert [e["modo"] for e in esc] == ["piso_mensal"] * 4 + ["diaria", "semanal"]
+    assert [e["dias_mes"] for e in esc] == ["15", "26", "21.67", "17.33", None, None]
+    assert rcat.escala_padrao(conn)["nome"] == "12x36"
+    assert rcat.obter_escala(conn, esc[2]["id"])["nome"] == "5x2"
+
+
+def test_seed_escalas_idempotente(conn):
+    rcat.seed_inicial(conn)
+    rcat.seed_inicial(conn)
+    assert len(rcat.listar_escalas(conn)) == 6
+
+
+def test_atualizar_escala(conn):
+    rcat.seed_inicial(conn)
+    eid = _escala(conn, "5x2")["id"]
+    rcat.atualizar_escala(conn, eid, "diaria", Decimal("22"))
+    e = rcat.obter_escala(conn, eid)
+    assert (e["modo"], e["dias_mes"]) == ("diaria", "22")
+    rcat.atualizar_escala(conn, eid, "diaria", None)
+    assert rcat.obter_escala(conn, eid)["dias_mes"] is None
+
+
+def test_atualizar_escala_rejeita(conn):
+    rcat.seed_inicial(conn)
+    with pytest.raises(ValueError):
+        rcat.atualizar_escala(conn, _escala(conn, "Personalizado")["id"], "diaria", None)
+    with pytest.raises(ValueError):
+        rcat.atualizar_escala(conn, _escala(conn, "5x2")["id"], "semanal", None)
+    with pytest.raises(ValueError):
+        rcat.atualizar_escala(conn, _escala(conn, "5x2")["id"], "piso_mensal", Decimal("0"))

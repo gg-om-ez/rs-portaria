@@ -88,6 +88,44 @@ def atualizar_funcao(conn: sqlite3.Connection, funcao_id: int, **campos) -> None
     conn.commit()
 
 
+MODOS_EDITAVEIS = ("piso_mensal", "diaria")
+
+
+def listar_escalas(conn: sqlite3.Connection, apenas_ativas: bool = True) -> list[sqlite3.Row]:
+    sql = "SELECT * FROM escalas" + (" WHERE ativa = 1" if apenas_ativas else "")
+    return conn.execute(sql + " ORDER BY ordem, id").fetchall()
+
+
+def obter_escala(conn: sqlite3.Connection, escala_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM escalas WHERE id = ?", (escala_id,)).fetchone()
+
+
+def escala_padrao(conn: sqlite3.Connection) -> sqlite3.Row:
+    """12x36: escala de rascunhos anteriores ao menu de escalas."""
+    row = conn.execute("SELECT * FROM escalas WHERE nome = '12x36'").fetchone()
+    if row is None:
+        raise ValueError("Escala padrão 12x36 ausente")
+    return row
+
+
+def atualizar_escala(conn: sqlite3.Connection, escala_id: int, modo: str,
+                     dias_mes: Decimal | None) -> None:
+    atual = obter_escala(conn, escala_id)
+    if atual is None:
+        raise ValueError(f"Escala {escala_id} não existe")
+    # Personalizado (semanal) tem preço por dia da semana; não troca de modo,
+    # e nenhuma outra escala vira semanal
+    if atual["modo"] == "semanal" or modo not in MODOS_EDITAVEIS:
+        raise ValueError(f"Modo de preço não editável para {atual['nome']}")
+    if dias_mes is not None and dias_mes <= 0:
+        raise ValueError("Dias trabalhados por mês inválido.")
+    conn.execute(
+        "UPDATE escalas SET modo = ?, dias_mes = ? WHERE id = ?",
+        (modo, None if dias_mes is None else str(dias_mes), escala_id),
+    )
+    conn.commit()
+
+
 _SEED_PARAMETROS = {
     "pct_encargos": "0.58",
     "pct_noturno": "0.20",
@@ -151,6 +189,18 @@ _SEED_FUNCOES = [
 ]
 
 
+# (nome, modo, dias_mes): dias = semanas médias (52/12) x dias trabalhados na semana;
+# 12x36 mantém os 15 plantões/mês do cálculo original
+_SEED_ESCALAS = [
+    ("12x36", "piso_mensal", "15"),
+    ("6x1", "piso_mensal", "26"),
+    ("5x2", "piso_mensal", "21.67"),
+    ("4x3", "piso_mensal", "17.33"),
+    ("Diárias por escala", "diaria", None),
+    ("Personalizado", "semanal", None),
+]
+
+
 def seed_inicial(conn: sqlite3.Connection) -> None:
     """Popula parâmetros e funções apenas se ainda não existirem (idempotente)."""
     for chave, valor in _SEED_PARAMETROS.items():
@@ -167,5 +217,11 @@ def seed_inicial(conn: sqlite3.Connection) -> None:
             conn.execute(
                 "INSERT INTO funcoes (nome, tipo, valor_base_centavos, aplica_noturno) VALUES (?, ?, ?, ?)",
                 (nome, tipo, valor, int(noturno)),
+            )
+    if not conn.execute("SELECT 1 FROM escalas LIMIT 1").fetchone():
+        for ordem, (nome, modo, dias) in enumerate(_SEED_ESCALAS, start=1):
+            conn.execute(
+                "INSERT INTO escalas (nome, modo, dias_mes, ordem) VALUES (?, ?, ?, ?)",
+                (nome, modo, dias, ordem),
             )
     conn.commit()

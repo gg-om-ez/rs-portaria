@@ -99,3 +99,27 @@ def test_admin_vigencia_invalida(client, tmp_path):
         "chave": "pct_encargos", "valor": "0.60", "vigencia_inicio": "2027-13-01",
     })
     assert r.status_code == 200 and "inválida" in r.text
+
+
+def _id_escala(tmp_path, nome):
+    return _conn(tmp_path).execute("SELECT id FROM escalas WHERE nome = ?", (nome,)).fetchone()["id"]
+
+
+def test_admin_atualiza_escala(client, tmp_path):
+    eid = _id_escala(tmp_path, "5x2")
+    r = client.post(f"/admin/escalas/{eid}", data={"modo": "diaria", "dias_mes": "21,67"},
+                    follow_redirects=False)
+    assert r.status_code == 303
+    row = _conn(tmp_path).execute("SELECT modo, dias_mes FROM escalas WHERE id = ?", (eid,)).fetchone()
+    assert (row["modo"], row["dias_mes"]) == ("diaria", "21.67")
+
+
+def test_admin_escala_dias_invalidos(client, tmp_path):
+    eid = _id_escala(tmp_path, "5x2")
+    r = client.post(f"/admin/escalas/{eid}", data={"modo": "diaria", "dias_mes": "abc"})
+    assert r.status_code == 200 and "Dias trabalhados por mês inválido." in r.text
+
+
+def test_admin_lista_escalas(client):
+    r = client.get("/admin")
+    assert "Escalas" in r.text and "Personalizado" in r.text and "Diária fechada" in r.text
