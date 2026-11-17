@@ -6,7 +6,7 @@
     {# trocar a escala busca a página de novo e recorta só o bloco #campos-escala #}
     <label>Escala <select name="escala_id"
         hx-get="/propostas/{{ prop.id }}/servicos" hx-target="#campos-escala"
-        hx-select="#campos-escala" hx-swap="outerHTML">
+        hx-select="#campos-escala" hx-swap="outerHTML" hx-include="[name^='qtd_']">
       {% for e in escalas %}
       <option value="{{ e.id }}" {{ 'selected' if e.id == escala.id }}>{{ e.nome }}</option>
       {% endfor %}
@@ -15,15 +15,20 @@
     <div id="campos-escala">
     {% if escala.modo == "semanal" %}
       <p>Marque os dias trabalhados e informe o horário e o valor da diária de cada um.</p>
-      {% for chave, rotulo in dias_semana %}{% set d = dias[chave] %}
-      <fieldset class="dia-escala">
-        <legend><label style="font-weight:600;margin:0">
-          <input type="checkbox" name="dia_{{ chave }}_ativo" style="width:auto" {{ 'checked' if d.ativo }}> {{ rotulo }}</label></legend>
-        <label>Início <input name="dia_{{ chave }}_inicio" type="time" data-campo="hora" value="{{ d.inicio }}"></label>
-        <label>Fim <input name="dia_{{ chave }}_fim" type="time" data-campo="hora" value="{{ d.fim }}"></label>
-        <label>Valor do dia (R$) <input name="dia_{{ chave }}_valor" inputmode="decimal" value="{{ d.valor }}" placeholder="0,00"></label>
-      </fieldset>
-      {% endfor %}
+      <div class="tabela-rolagem">
+      <table class="custos tabela-semana">
+        <tr><th>Dia</th><th>Início</th><th>Fim</th><th class="num">Valor do dia (R$)</th></tr>
+        {% for chave, rotulo in dias_semana %}{% set d = dias[chave] %}
+        <tr>
+          <td><label style="font-weight:600;margin:0">
+            <input type="checkbox" name="dia_{{ chave }}_ativo" style="width:auto" {{ 'checked' if d.ativo }}> {{ rotulo }}</label></td>
+          <td><input name="dia_{{ chave }}_inicio" type="time" data-campo="hora" value="{{ d.inicio }}" aria-label="Início {{ rotulo }}"></td>
+          <td><input name="dia_{{ chave }}_fim" type="time" data-campo="hora" value="{{ d.fim }}" aria-label="Fim {{ rotulo }}"></td>
+          <td class="num"><input name="dia_{{ chave }}_valor" inputmode="decimal" value="{{ d.valor }}" placeholder="0,00" aria-label="Valor {{ rotulo }}"></td>
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
     {% else %}
       <label>Início do turno <input name="hora_inicio_turno" type="time" data-campo="hora" value="{{ dados.hora_inicio_turno or '18:00' }}" required></label>
       <label>Fim do turno <input name="hora_fim_turno" type="time" data-campo="hora" value="{{ dados.hora_fim_turno or '06:00' }}" required></label>
@@ -35,6 +40,8 @@
       <label>Dias trabalhados por mês (por profissional)
         <input name="plantoes_mes" inputmode="decimal" value="{{ dias_mes | replace('.', ',') }}"></label>
     {% endif %}
+    {# funções dentro do fragmento: o rótulo "base" acompanha a escala escolhida #}
+    {% include "_funcoes_qtd.html" %}
     </div>
   {% else %}
     <label>Comunicação <select name="comunicacao">
@@ -51,12 +58,7 @@
     {% endfor %}
   </select></label>
 
-  <h2>Funções e quantidades</h2>
-  {% for f in funcoes %}
-  <label>{{ f.nome }}{% if prop.tipo == "evento" or escala.modo == "piso_mensal" %} - base {{ f.valor_base_centavos | brl }}{% endif %}
-    <input name="qtd_{{ f.id }}" inputmode="numeric" value="{{ qtd_atuais.get(f.id, 0) }}">
-  </label>
-  {% endfor %}
+  {% if prop.tipo != "continuo" %}{% include "_funcoes_qtd.html" %}{% endif %}
 
   <label>Observações <textarea name="observacoes" rows="3">{{ dados.observacoes or '' }}</textarea></label>
   {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}

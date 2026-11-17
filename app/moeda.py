@@ -51,11 +51,14 @@ def parse_percentual(texto: str) -> Decimal:
     """'5%' -> Decimal('0.05'); '5,5 %' -> Decimal('0.055'). Exige o sinal de %."""
     limpo = texto.strip()
     if not limpo.endswith("%"):
-        raise ValueError(f"Percentual inválido: {texto!r}")
+        raise ValueError("Valor inválido - use 1.234,56 ou 5%.")
     numero = limpo[:-1].strip().replace(",", ".")
     if not re.fullmatch(r"\d+(\.\d+)?", numero):
-        raise ValueError(f"Percentual inválido: {texto!r}")
-    return Decimal(numero) / 100
+        raise ValueError("Valor inválido - use 1.234,56 ou 5%.")
+    fracao = Decimal(numero) / 100
+    if fracao <= 0 or fracao > 1:
+        raise ValueError("Percentual deve ficar entre 0% e 100%.")
+    return fracao
 
 
 def format_percentual(fracao: Decimal | str) -> str:

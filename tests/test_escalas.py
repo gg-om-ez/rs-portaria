@@ -114,3 +114,8 @@ def test_ler_form_diaria():
 ])
 def test_ler_form_erros_turno(escala, form, mensagem):
     assert escalas.ler_form_escala(escala, form)[1] == mensagem
+
+
+def test_ler_form_dias_acima_de_31():
+    form = {"hora_inicio_turno": "06:00", "hora_fim_turno": "18:00", "plantoes_mes": "32"}
+    assert escalas.ler_form_escala(E12X36, form)[1] == "Dias trabalhados por mês inválido."

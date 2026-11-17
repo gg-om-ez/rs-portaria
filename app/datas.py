@@ -9,7 +9,7 @@ from datetime import date
 _ISO = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 _BR = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
 _BR_DIGITOS = re.compile(r"(\d{2})(\d{2})(\d{4})")  # máscara incompleta: só dígitos
-_HORA = re.compile(r"(\d{1,2})[:h](\d{2})(?::\d{2})?")  # segundos do input nativo descartados
+_HORA = re.compile(r"(\d{1,2})[:hH](\d{2})(?::\d{2})?")  # segundos do input nativo descartados
 _HORA_DIGITOS = re.compile(r"(\d{2})(\d{2})")
 
 

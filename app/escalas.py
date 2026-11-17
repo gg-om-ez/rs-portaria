@@ -97,7 +97,7 @@ def ler_form_escala(escala: Mapping, form: Mapping) -> tuple[dict, str | None]:
         dias = parse_decimal_br(bruto) if bruto else Decimal(escala["dias_mes"] or "0")
     except ValueError:
         dias = Decimal("0")
-    if dias <= 0:
+    if dias <= 0 or dias > 31:  # teto evita erro de digitação virar preço
         return dados, "Dias trabalhados por mês inválido."
     dados["plantoes_mes"] = str(dias)
 

@@ -34,3 +34,7 @@ def test_parse_hora_24(entrada, esperado):
 def test_parse_hora_24_rejeita(entrada):
     with pytest.raises(ValueError):
         parse_hora_24(entrada)
+
+
+def test_hora_h_maiusculo():
+    assert parse_hora_24("18H15") == "18:15"

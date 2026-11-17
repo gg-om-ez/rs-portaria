@@ -1,0 +1,8 @@
+<h2>Funções e quantidades</h2>
+<div class="funcoes-qtd">
+{% for f in funcoes %}
+<label>{{ f.nome }}{% if prop.tipo == "evento" or escala.modo == "piso_mensal" %} - base {{ f.valor_base_centavos | brl }}{% endif %}
+  <input name="qtd_{{ f.id }}" inputmode="numeric" value="{{ qtd_atuais.get(f.id, 0) }}">
+</label>
+{% endfor %}
+</div>

@@ -45,7 +45,10 @@
     input.value = isoParaBr(tipo, valor);
     input.setAttribute("data-convertido", "");
     input.addEventListener("input", function () {
-      input.value = mascarar(cfg, input.value);
+      // Data ISO colada (2026-11-17) vira BR antes da máscara, que leria só os dígitos
+      var bruto = input.value.trim();
+      if (tipo === "data" && /^\d{4}-\d{2}-\d{2}$/.test(bruto)) bruto = isoParaBr(tipo, bruto);
+      input.value = mascarar(cfg, bruto);
     });
   }
 

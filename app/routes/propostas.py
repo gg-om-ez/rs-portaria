@@ -240,6 +240,10 @@ def etapa_servicos(request: Request, pid: int, escala_id: str = "", conn=Depends
         for l in rp.linhas_da_proposta(conn, pid)
         if l["categoria"] == "mao_de_obra" and l["funcao_id"]
     }
+    # Troca de escala via hx-get manda as quantidades digitadas (hx-include)
+    for nome, valor in request.query_params.items():
+        if nome.startswith("qtd_") and nome[4:].isdigit():
+            ctx["qtd_atuais"][int(nome[4:])] = valor
     return templates.TemplateResponse(request, "etapa_servicos.html", ctx)
 
 
@@ -371,7 +375,10 @@ def alterar_valor(request: Request, pid: int, lid: int,
         centavos = parse_brl(valor)
     except ValueError:
         centavos = None  # valor ilegível: mantém como está; tabela devolvida mostra o atual
-    if centavos is not None:
+    atual = conn.execute(
+        "SELECT valor_final_centavos FROM linhas_custo WHERE id = ?", (lid,)).fetchone()[0]
+    # OK sem mudar o valor não vira override (congelaria uma linha percentual)
+    if centavos is not None and centavos != atual:
         rp.sobrescrever_linha(conn, lid, centavos)
     rp.recalcular_derivadas(conn, pid, rcat.params_vigentes(conn))
     return _responder_tabela(request, conn, pid)
@@ -404,9 +411,9 @@ def adicionar_linha_manual(request: Request, pid: int,
             pct, centavos = parse_percentual(valor), 0
         else:
             pct, centavos = None, parse_brl(valor)
-    except ValueError:
-        return _responder_tabela(request, conn, pid,
-                                 erro="Valor inválido - use 1.234,56 ou 5%.")
+    except ValueError as exc:
+        erro = str(exc) if valor.strip().endswith("%") else "Valor inválido - use 1.234,56 ou 5%."
+        return _responder_tabela(request, conn, pid, erro=erro)
     rp.inserir_linha(conn, pid, descricao, "manual", 1, centavos, percentual=pct)
     rp.recalcular_derivadas(conn, pid, rcat.params_vigentes(conn))
     return _responder_tabela(request, conn, pid)

@@ -573,3 +573,25 @@ def test_revisao_lado_a_lado(client):
     r = client.get(f"/propostas/{pid}/revisao")
     assert 'class="revisao-colunas"' in r.text and 'target="_blank"' in r.text
     assert 'class="wizard-lateral"' not in r.text  # revisão usa a largura toda
+
+
+# ---- minors das telas ----
+def test_trocar_escala_preserva_quantidades(client, tmp_path):
+    pid = _nova(client)
+    diurna = _funcao_id(tmp_path, "Portaria diurna")
+    pers = _escala_id(tmp_path, "Personalizado")
+    r = client.get(f"/propostas/{pid}/servicos?escala_id={pers}&qtd_{diurna}=3")
+    assert f'name="qtd_{diurna}" inputmode="numeric" value="3"' in r.text
+    # a lista de funções vem dentro do fragmento trocado pelo hx-select
+    frag = r.text[r.text.index('id="campos-escala"'):]
+    assert f'name="qtd_{diurna}"' in frag and "hx-include" in r.text
+
+
+def test_ok_sem_mudar_valor_nao_congela_percentual(client, tmp_path):
+    pid = _nova(client)
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "Operacional", "valor": "1.000,00"})
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "ISS", "valor": "5%"})
+    iss = [l for l in _linha_manual(_conn(tmp_path), pid) if l["descricao"] == "ISS"][0]
+    client.post(f"/propostas/{pid}/linhas/{iss['id']}/valor", data={"valor": "50,00"})
+    iss = [l for l in _linha_manual(_conn(tmp_path), pid) if l["descricao"] == "ISS"][0]
+    assert iss["sobrescrito"] == 0

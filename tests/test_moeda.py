@@ -71,7 +71,7 @@ from app.moeda import format_percentual, parse_percentual
 
 
 @pytest.mark.parametrize("entrada,esperado", [
-    ("5%", Decimal("0.05")), (" 5,5 % ", Decimal("0.055")), ("0%", Decimal("0")),
+    ("5%", Decimal("0.05")), (" 5,5 % ", Decimal("0.055")),
     ("12.5%", Decimal("0.125"))])
 def test_parse_percentual(entrada, esperado):
     assert parse_percentual(entrada) == esperado
@@ -117,3 +117,13 @@ def test_parse_percentual_campo(e, v):
 def test_parse_percentual_campo_rejeita(e):
     with pytest.raises(ValueError):
         parse_percentual_campo(e)
+
+
+@pytest.mark.parametrize("e", ["0%", "150%", "100,5%"])
+def test_parse_percentual_fora_da_faixa(e):
+    with pytest.raises(ValueError):
+        parse_percentual(e)
+
+
+def test_parse_percentual_limite_100():
+    assert parse_percentual("100%") == Decimal("1")
