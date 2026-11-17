@@ -239,3 +239,32 @@ def test_duplicar_preserva_percentual(conn):
     rp.sobrescrever_linha(conn, linhas["Fixa"]["id"], 100000)
     rp.recalcular_derivadas(conn, novo, PARAMS)
     assert _linha(conn, linhas["ISS"]["id"])["valor_final_centavos"] == 5000
+
+
+def test_modo_semanal_sem_acessorios_nem_derivadas(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.atualizar_dados(conn, pid, {"modo_preco": "semanal"})
+    rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 325000)
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    rp.inserir_linha(conn, pid, "ISS", "manual", 1, 0, percentual=Decimal("0.05"))
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    categorias = {l["categoria"] for l in rp.linhas_da_proposta(conn, pid)}
+    assert categorias == {"mao_de_obra", "manual"}
+    assert rp.total_proposta(conn, pid) == 341250
+
+
+def test_trocar_para_semanal_remove_e_voltar_para_piso_recria(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 160000)
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    rp.atualizar_dados(conn, pid, {"modo_preco": "semanal"})
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    assert {l["categoria"] for l in rp.linhas_da_proposta(conn, pid)} == {"mao_de_obra"}
+    rp.atualizar_dados(conn, pid, {"modo_preco": "piso_mensal"})
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    descricoes = {l["descricao"] for l in rp.linhas_da_proposta(conn, pid)}
+    assert {"Alimentação", "Transporte", "Encargos sociais", "Margem administrativa"} <= descricoes

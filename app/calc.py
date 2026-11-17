@@ -37,7 +37,7 @@ def minutos_noturnos(inicio: time, fim: time) -> int:
 
 
 def adicional_noturno_mensal(
-    piso_centavos: int, inicio: time, fim: time, plantoes_mes: int, params: Params
+    piso_centavos: int, inicio: time, fim: time, plantoes_mes: int | Decimal, params: Params
 ) -> int:
     horas_noturnas_mes = Decimal(minutos_noturnos(inicio, fim) * plantoes_mes) / 60
     valor_hora = Decimal(piso_centavos) / params.divisor_horas
@@ -45,7 +45,7 @@ def adicional_noturno_mensal(
 
 
 def custo_profissional_continuo(
-    piso_centavos: int, inicio: time, fim: time, plantoes_mes: int, params: Params
+    piso_centavos: int, inicio: time, fim: time, plantoes_mes: int | Decimal, params: Params
 ) -> int:
     return piso_centavos + adicional_noturno_mensal(
         piso_centavos, inicio, fim, plantoes_mes, params
@@ -65,3 +65,13 @@ def margem_centavos(base_centavos: int, params: Params) -> int:
 def aplicar_percentual(base_centavos: int, pct: Decimal) -> int:
     """Linha manual percentual: fração sobre a base em centavos."""
     return _para_centavos(Decimal(base_centavos) * pct)
+
+
+def mensal_de_semanal(semanal_centavos: int) -> int:
+    """Escala semanal recorrente -> mês médio (52 semanas / 12 meses)."""
+    return _para_centavos(Decimal(semanal_centavos) * 52 / 12)
+
+
+def mensal_por_diaria(diaria_centavos: int, dias_mes: Decimal) -> int:
+    """Diária fechada x dias trabalhados no mês (pode ser fracionário: 5x2 = 21,67)."""
+    return _para_centavos(Decimal(diaria_centavos) * dias_mes)

@@ -58,3 +58,21 @@ def test_encargos_e_margem():
     zero = Params(Decimal("0"), Decimal("0"), Decimal("0"))
     assert encargos_centavos(100000, zero) == 0
     assert margem_centavos(100000, zero) == 0
+
+
+from app.calc import mensal_de_semanal, mensal_por_diaria
+
+
+def test_mensal_de_semanal_media_52_12():
+    assert mensal_de_semanal(75000) == 325000
+
+
+def test_mensal_por_diaria():
+    assert mensal_por_diaria(20000, Decimal("21.67")) == 433400
+    assert mensal_por_diaria(15000, Decimal("4.33")) == 64950
+
+
+def test_noturno_aceita_dias_decimais():
+    inteiro = adicional_noturno_mensal(160000, time(18), time(6), 15, PARAMS)
+    assert adicional_noturno_mensal(160000, time(18), time(6), Decimal("15"), PARAMS) == inteiro
+    assert adicional_noturno_mensal(160000, time(18), time(6), Decimal("21.67"), PARAMS) > inteiro

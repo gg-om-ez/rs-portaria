@@ -4,6 +4,7 @@ import sqlite3
 from decimal import Decimal
 
 from app.calc import Params, aplicar_percentual, encargos_centavos, margem_centavos
+from app.escalas import usa_motor_completo
 
 _ORDEM = {"mao_de_obra": 1, "acessorio": 2, "derivada": 3, "manual": 4}
 
@@ -182,8 +183,16 @@ def _upsert_linha_fixa(conn, pid: int, descricao: str, categoria: str,
 
 def sincronizar_acessorios(conn: sqlite3.Connection, pid: int,
                            valor_alimentacao: int, valor_transporte: int) -> None:
-    """Alimentação/Transporte com quantidade = total de profissionais de mão de obra."""
-    _exigir_rascunho(conn, pid)
+    """Alimentação/Transporte com quantidade = total de profissionais de mão de obra.
+    Modos de diária fechada não têm acessórios automáticos."""
+    row = _exigir_rascunho(conn, pid)
+    if not usa_motor_completo(row["tipo"], dados_de(row)):
+        conn.execute(
+            "DELETE FROM linhas_custo WHERE proposta_id = ? AND categoria = 'acessorio'",
+            (pid,),
+        )
+        conn.commit()
+        return
     profs = conn.execute(
         "SELECT COALESCE(SUM(quantidade), 0) AS n FROM linhas_custo"
         " WHERE proposta_id = ? AND categoria = 'mao_de_obra'",
@@ -203,16 +212,17 @@ def sincronizar_acessorios(conn: sqlite3.Connection, pid: int,
 
 def recalcular_derivadas(conn: sqlite3.Connection, pid: int, params: Params) -> None:
     """Encargos e margem do motor, depois as linhas manuais percentuais."""
-    _exigir_rascunho(conn, pid)
-    _recalcular_encargos_margem(conn, pid, params)
+    row = _exigir_rascunho(conn, pid)
+    _recalcular_encargos_margem(conn, pid, params, usa_motor_completo(row["tipo"], dados_de(row)))
     _recalcular_percentuais(conn, pid)
 
 
-def _recalcular_encargos_margem(conn: sqlite3.Connection, pid: int, params: Params) -> None:
+def _recalcular_encargos_margem(conn: sqlite3.Connection, pid: int, params: Params,
+                                motor_completo: bool) -> None:
     """Encargos sobre mão de obra; margem sobre mão de obra + acessórios + encargos."""
     base_mo = _soma_categoria(conn, pid, "mao_de_obra")
-    if base_mo == 0:
-        # Sem mão de obra não há derivadas: remove linhas obsoletas
+    if base_mo == 0 or not motor_completo:
+        # Sem mão de obra, ou em diária fechada, não há derivadas: remove linhas obsoletas
         conn.execute(
             "DELETE FROM linhas_custo WHERE proposta_id = ? AND categoria = 'derivada'",
             (pid,),
