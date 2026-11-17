@@ -12,6 +12,7 @@ from app import repo_catalogo as rcat
 from app import repo_clientes as rcli
 from app import repo_propostas as rp
 from app.calc import custo_profissional_continuo
+from app.datas import parse_data, parse_hora_24
 from app.db import conn_dep
 from app.moeda import parse_brl
 from app.web import templates
@@ -110,6 +111,7 @@ def _campos_local(tipo: str) -> list[str]:
 
 
 def _erro_validacao_local(tipo: str, dados: dict) -> str | None:
+    """Valida e normaliza datas/horas para ISO em `dados` (in-place)."""
     if not dados.get("endereco_servico"):
         return "Endereço é obrigatório."
     if tipo == "continuo":
@@ -119,19 +121,19 @@ def _erro_validacao_local(tipo: str, dados: dict) -> str | None:
         except ValueError:
             return "Duração em meses inválida."
         try:
-            date.fromisoformat(dados.get("data_inicio") or "")
+            dados["data_inicio"] = parse_data(dados.get("data_inicio", ""))
         except ValueError:
-            return "Data de início inválida."
+            return "Data de início inválida - use dd/mm/aaaa."
     else:
         try:
-            date.fromisoformat(dados.get("data_evento") or "")
+            dados["data_evento"] = parse_data(dados.get("data_evento", ""))
         except ValueError:
-            return "Data do evento inválida."
+            return "Data do evento inválida - use dd/mm/aaaa."
         for campo, rotulo in [("hora_inicio", "Horário de início"), ("hora_fim", "Horário de término")]:
             try:
-                time.fromisoformat(dados.get(campo) or "")
+                dados[campo] = parse_hora_24(dados.get(campo, ""))
             except ValueError:
-                return f"{rotulo} inválido."
+                return f"{rotulo} inválido - use HH:MM (24h)."
     return None
 
 
@@ -171,6 +173,7 @@ def _campos_servicos(tipo: str) -> list[str]:
 
 
 def _erro_validacao_servicos(tipo: str, dados: dict) -> str | None:
+    """Valida e normaliza os horários do turno para HH:MM em `dados` (in-place)."""
     if tipo != "continuo":
         return None
     for campo, rotulo in [
@@ -178,9 +181,9 @@ def _erro_validacao_servicos(tipo: str, dados: dict) -> str | None:
         ("hora_fim_turno", "Horário de término do turno"),
     ]:
         try:
-            time.fromisoformat(dados.get(campo) or "")
+            dados[campo] = parse_hora_24(dados.get(campo, ""))
         except ValueError:
-            return f"{rotulo} inválido."
+            return f"{rotulo} inválido - use HH:MM (24h)."
     plantoes = dados.get("plantoes_mes") or ""
     if plantoes:
         try:
@@ -390,7 +393,14 @@ async def salvar_pagamento(request: Request, pid: int, conn=Depends(conn_dep)):
         novos["vencimento"] = str(form.get("vencimento", "")).strip()
         novos["parcela_ingresso"] = "sim" if form.get("parcela_ingresso") else ""
     else:
-        novos["data_limite_pagamento"] = str(form.get("data_limite_pagamento", "")).strip()
+        bruto = str(form.get("data_limite_pagamento", "")).strip()
+        try:
+            novos["data_limite_pagamento"] = parse_data(bruto)
+        except ValueError:
+            ctx = _ctx_wizard(prop, "pagamento")
+            ctx["dados"] = {**ctx["dados"], **novos, "data_limite_pagamento": bruto}
+            ctx["erro"] = "Data-limite inválida - use dd/mm/aaaa."
+            return templates.TemplateResponse(request, "etapa_pagamento.html", ctx)
     rp.atualizar_dados(conn, pid, novos)
     return RedirectResponse(f"/propostas/{pid}/revisao", status_code=303)
 

@@ -265,3 +265,79 @@ def test_linha_manual_bloqueada_em_proposta_emitida(client, tmp_path):
                     follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].endswith("/emitida")
     assert _linha_manual(conn, pid) == []
+
+
+def _dados(tmp_path, pid):
+    import json
+    return json.loads(_conn(tmp_path).execute(
+        "SELECT dados_json FROM propostas WHERE id=?", (pid,)).fetchone()[0])
+
+
+def test_local_aceita_data_br(client, tmp_path):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/local", data={
+        "descricao_local": "Empresa", "endereco_servico": "Av. Exemplo, 1000",
+        "duracao_meses": "12", "data_inicio": "01/08/2026",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    assert _dados(tmp_path, pid)["data_inicio"] == "2026-08-01"
+
+
+def test_local_data_invalida(client):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/local", data={
+        "descricao_local": "Empresa", "endereco_servico": "Av. Exemplo, 1000",
+        "duracao_meses": "12", "data_inicio": "31/02/2026",
+    })
+    assert r.status_code == 200
+    assert "Data de início inválida - use dd/mm/aaaa." in r.text
+
+
+def test_servicos_normaliza_hora(client, tmp_path):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/servicos", data={
+        "hora_inicio_turno": "6:00", "hora_fim_turno": "18h00",
+        "plantoes_mes": "15", "trajes": "Fardamento padrão da empresa prestadora",
+        "observacoes": "",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    dados = _dados(tmp_path, pid)
+    assert dados["hora_inicio_turno"] == "06:00" and dados["hora_fim_turno"] == "18:00"
+
+
+def test_pagamento_data_limite_br(client, tmp_path):
+    pid = _nova(client, tipo="evento")
+    r = client.post(f"/propostas/{pid}/pagamento", data={
+        "formas_pagamento": "PIX", "data_limite_pagamento": "09/09/2026",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    assert _dados(tmp_path, pid)["data_limite_pagamento"] == "2026-09-09"
+
+
+def test_pagamento_data_limite_invalida(client):
+    pid = _nova(client, tipo="evento")
+    r = client.post(f"/propostas/{pid}/pagamento", data={
+        "formas_pagamento": "PIX", "data_limite_pagamento": "banana",
+    })
+    assert r.status_code == 200
+    assert "Data-limite inválida - use dd/mm/aaaa." in r.text
+
+
+def test_preview_mostra_data_br(client):
+    pid = _nova(client)
+    client.post(f"/propostas/{pid}/local", data={
+        "descricao_local": "Empresa", "endereco_servico": "Av. Exemplo, 1000",
+        "duracao_meses": "12", "data_inicio": "2026-08-01",
+    })
+    r = client.get(f"/propostas/{pid}/preview")
+    assert "01/08/2026" in r.text and "2026-08-01" not in r.text
+
+
+def test_inputs_de_data_marcados_para_mascara(client):
+    pid = _nova(client)
+    r = client.get(f"/propostas/{pid}/local")
+    assert 'data-campo="data"' in r.text and 'type="date"' in r.text
+
+
+def test_base_carrega_campos_js(client):
+    assert "/static/campos.js" in client.get("/").text

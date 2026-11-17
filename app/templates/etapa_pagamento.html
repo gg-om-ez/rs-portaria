@@ -16,8 +16,9 @@
       {{ 'checked' if dados.parcela_ingresso == 'sim' }}> Aplicar parcela de ingresso (50% na assinatura)</label>
   {% else %}
     <label>Data-limite do pagamento antecipado
-      <input name="data_limite_pagamento" type="date" value="{{ dados.data_limite_pagamento or '' }}" required></label>
+      <input name="data_limite_pagamento" type="date" data-campo="data" value="{{ dados.data_limite_pagamento or '' }}" required></label>
   {% endif %}
+  {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
   <button>Salvar e revisar</button>
 </form>
 {% endblock %}

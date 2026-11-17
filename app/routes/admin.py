@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app import repo_catalogo as rcat
+from app.datas import parse_data
 from app.db import conn_dep
 from app.moeda import format_brl, parse_brl
 from app.web import templates
@@ -65,6 +66,10 @@ def salvar_parametro(request: Request, chave: str = Form(...), valor: str = Form
             raise ValueError(f"Chave desconhecida: {chave}")
         if _MONETARIA(chave):
             valor = str(parse_brl(valor))
+        try:
+            vigencia_inicio = parse_data(vigencia_inicio)
+        except ValueError:
+            raise ValueError("Data de vigência inválida - use dd/mm/aaaa.")
         rcat.definir_parametro(conn, chave, valor.strip(), vigencia_inicio)
     except ValueError as exc:
         return _render_painel(request, conn, erro=str(exc))

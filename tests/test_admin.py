@@ -81,3 +81,21 @@ def test_criar_funcao_valor_vazio_reexibe_erro(client, tmp_path):
     conn = _conn(tmp_path)
     f = conn.execute("SELECT * FROM funcoes WHERE nome LIKE 'Vigia%'").fetchone()
     assert f is None
+
+
+def test_admin_vigencia_br(client, tmp_path):
+    r = client.post("/admin/parametros", data={
+        "chave": "pct_encargos", "valor": "0.60", "vigencia_inicio": "01/01/2027",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    vig = _conn(tmp_path).execute(
+        "SELECT vigencia_inicio FROM parametros WHERE chave='pct_encargos'"
+        " ORDER BY id DESC LIMIT 1").fetchone()[0]
+    assert vig == "2027-01-01"
+
+
+def test_admin_vigencia_invalida(client, tmp_path):
+    r = client.post("/admin/parametros", data={
+        "chave": "pct_encargos", "valor": "0.60", "vigencia_inicio": "2027-13-01",
+    })
+    assert r.status_code == 200 and "inválida" in r.text

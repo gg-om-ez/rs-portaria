@@ -4,8 +4,8 @@
 <h1>Serviços</h1>
 <form method="post" action="/propostas/{{ prop.id }}/servicos" class="cartao">
   {% if prop.tipo == "continuo" %}
-    <label>Início do turno <input name="hora_inicio_turno" type="time" value="{{ dados.hora_inicio_turno or '18:00' }}" required></label>
-    <label>Fim do turno <input name="hora_fim_turno" type="time" value="{{ dados.hora_fim_turno or '06:00' }}" required></label>
+    <label>Início do turno <input name="hora_inicio_turno" type="time" data-campo="hora" value="{{ dados.hora_inicio_turno or '18:00' }}" required></label>
+    <label>Fim do turno <input name="hora_fim_turno" type="time" data-campo="hora" value="{{ dados.hora_fim_turno or '06:00' }}" required></label>
     <label>Plantões por mês (por profissional)
       <input name="plantoes_mes" inputmode="numeric" value="{{ dados.plantoes_mes or plantoes_padrao }}"></label>
   {% else %}

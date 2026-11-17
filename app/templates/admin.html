@@ -11,7 +11,7 @@
     {% if p.longo %}<textarea name="valor" rows="4">{{ p.valor }}</textarea>
     {% else %}<input name="valor" value="{{ p.valor }}">{% endif %}
   </label>
-  <label>Vigente a partir de <input type="date" name="vigencia_inicio" value="{{ hoje }}"></label>
+  <label>Vigente a partir de <input type="date" data-campo="data" name="vigencia_inicio" value="{{ hoje }}"></label>
   <button class="mini">Salvar novo valor</button>
 </form>
 {% endfor %}

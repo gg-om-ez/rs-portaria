@@ -37,11 +37,11 @@
   {% if s.tipo == "continuo" %}
     {% if s.dados.descricao_local %}<li><strong>Descrição:</strong> {{ s.dados.descricao_local }}</li>{% endif %}
     <li><strong>Local do serviço:</strong> {{ s.dados.endereco_servico }}</li>
-    <li><strong>Duração:</strong> {{ s.dados.duracao_meses }} meses - início previsto em {{ s.dados.data_inicio }}, com possibilidade de renovação durante contrato vigente.</li>
+    <li><strong>Duração:</strong> {{ s.dados.duracao_meses }} meses - início previsto em {{ s.dados.data_inicio | data_br }}, com possibilidade de renovação durante contrato vigente.</li>
   {% else %}
     {% if s.dados.nome_evento %}<li><strong>Evento:</strong> {{ s.dados.nome_evento }}</li>{% endif %}
     <li><strong>Local do evento:</strong> {{ s.dados.endereco_servico }}</li>
-    <li><strong>Data:</strong> {{ s.dados.data_evento }} - das {{ s.dados.hora_inicio }} às {{ s.dados.hora_fim }}</li>
+    <li><strong>Data:</strong> {{ s.dados.data_evento | data_br }} - das {{ s.dados.hora_inicio }} às {{ s.dados.hora_fim }}</li>
   {% endif %}
 </ul>
 
@@ -78,7 +78,7 @@
     <li><strong>Vencimento:</strong> {{ s.dados.vencimento }}</li>
     {% if s.dados.parcela_ingresso %}<li><strong>Parcela de ingresso (50%):</strong> metade do valor mensal devida na assinatura do contrato ou até a data de início da operação; parcela complementar devida até o vencimento acordado. A partir do segundo mês, retorna-se ao fluxo padrão.</li>{% endif %}
   {% else %}
-    <li><strong>Condição:</strong> pagamento antecipado, em parcela única, até {{ s.dados.data_limite_pagamento }}. Em caso de não recebimento até a data-limite, a {{ s.empresa.nome }} reserva-se o direito de entender desistência por parte do contratante.</li>
+    <li><strong>Condição:</strong> pagamento antecipado, em parcela única, até {{ s.dados.data_limite_pagamento | data_br }}. Em caso de não recebimento até a data-limite, a {{ s.empresa.nome }} reserva-se o direito de entender desistência por parte do contratante.</li>
   {% endif %}
 </ul>
 
@@ -88,4 +88,4 @@
 </ul>
 
 <h2>Observações finais</h2>
-<p>{{ s.obs_finais }} Este orçamento tem validade de {{ s.validade_dias }} dias a partir de {{ s.emitida_em }}.</p>
+<p>{{ s.obs_finais }} Este orçamento tem validade de {{ s.validade_dias }} dias a partir de {{ s.emitida_em | data_br }}.</p>
