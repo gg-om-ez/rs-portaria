@@ -4,6 +4,6 @@
 <div class="wizard">
   {% include "_etapas.html" %}
   <div class="wizard-conteudo">{% block etapa_conteudo %}{% endblock %}</div>
-  <aside class="wizard-lateral" aria-label="Lateral">{% block etapa_lateral %}{% include "_resumo.html" %}{% endblock %}</aside>
+  {% if not sem_lateral %}<aside class="wizard-lateral" aria-label="Lateral">{% block etapa_lateral %}{% include "_resumo.html" %}{% endblock %}</aside>{% endif %}
 </div>
 {% endblock %}

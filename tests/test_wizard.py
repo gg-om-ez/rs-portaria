@@ -548,3 +548,28 @@ def test_lista_filtros_na_query(client):
     _com_cliente(client)
     r = client.get("/propostas?status=emitida")
     assert "Nada encontrado." in r.text and '<option value="emitida" selected' in r.text
+
+
+# ---- Custos e Revisão no layout de desktop ----
+def test_custos_colunas_origem_e_sugerido(client):
+    pid = _com_cliente(client)
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "Operacional", "valor": "1.000,00"})
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "ISS", "valor": "5%"})
+    r = client.get(f"/propostas/{pid}/custos")
+    for t in ["Origem", "Sugerido", "Percentual", "Manual", "ISS (5%)"]:
+        assert t in r.text, t
+
+
+def test_htmx_atualiza_tabela_e_total(client):
+    pid = _com_cliente(client)
+    r = client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "Operacional", "valor": "100,00"},
+                    headers={"HX-Request": "true"})
+    assert "Total da proposta" in r.text and "Adicionar linha" in r.text and "100,00" in r.text
+    assert "<html" not in r.text  # parcial, não a página
+
+
+def test_revisao_lado_a_lado(client):
+    pid = _com_cliente(client)
+    r = client.get(f"/propostas/{pid}/revisao")
+    assert 'class="revisao-colunas"' in r.text and 'target="_blank"' in r.text
+    assert 'class="wizard-lateral"' not in r.text  # revisão usa a largura toda

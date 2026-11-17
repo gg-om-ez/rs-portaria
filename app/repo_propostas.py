@@ -304,3 +304,12 @@ def duplicar_proposta(conn: sqlite3.Connection, pid: int) -> int:
     )
     conn.commit()
     return novo
+
+
+def totais_por_origem(conn: sqlite3.Connection, pid: int) -> dict[str, int]:
+    """Subtotais por origem do valor; linha manual percentual conta à parte."""
+    totais = {"mao_de_obra": 0, "acessorio": 0, "derivada": 0, "manual": 0, "percentual": 0}
+    for linha in linhas_da_proposta(conn, pid):
+        chave = "percentual" if linha["percentual"] is not None else linha["categoria"]
+        totais[chave] += linha["valor_final_centavos"] * linha["quantidade"]
+    return totais

@@ -46,7 +46,9 @@ def _ctx_wizard(conn, prop, etapa: str) -> dict:
     dados = rp.dados_de(prop)
     return {"prop": prop, "dados": dados, "etapas": ETAPAS, "etapa": etapa,
             "estados": checklist.estado_etapas(checklist.avaliar(conn, prop["id"]), ETAPAS, etapa),
-            "resumo": _resumo(conn, prop, dados)}
+            "resumo": _resumo(conn, prop, dados),
+            # Custos e Revisão usam a largura toda (painel e prévia próprios)
+            "sem_lateral": etapa in ("custos", "revisao")}
 
 
 @router.get("/")
@@ -329,6 +331,7 @@ def _ctx_custos(conn, prop) -> dict:
         "prop": prop,
         "linhas": rp.linhas_da_proposta(conn, prop["id"]),
         "total": rp.total_proposta(conn, prop["id"]),
+        "totais": rp.totais_por_origem(conn, prop["id"]),
     }
 
 

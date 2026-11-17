@@ -18,7 +18,7 @@ label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: .92rem;
 input, select, textarea { width: 100%; padding: 12px; font-size: 1rem;
   border: 1px solid var(--borda); border-radius: 8px; }
 button { background: var(--marca); color: var(--texto-inverso); border: 0; border-radius: 8px;
-  padding: 12px 18px; font-size: 1rem; font-weight: 700; margin-top: 12px; width: 100%; }
+  padding: 12px 18px; font-size: 1rem; font-weight: 700; margin-top: 12px; width: auto; }
 button.mini { width: auto; padding: 6px 10px; font-size: .8rem; margin: 4px 0 0; background: var(--neutro); }
 button.secundario { background: var(--neutro); }
 .acoes-tipo { display: grid; gap: 8px; }
@@ -108,3 +108,23 @@ iframe.preview { width: 100%; height: 70vh; border: 1px solid var(--borda); bord
 .acoes-linha { display: flex; gap: 12px; align-items: center; justify-content: flex-end; white-space: nowrap; }
 .acoes-linha .mini { margin: 0; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Custos: tabela | painel (total e adicionar linha) */
+.custos-colunas { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.custos-tabela { flex: 999 1 560px; min-width: 0; }
+.custos-tabela table.custos { min-width: 720px; }
+.custos-painel { flex: 1 1 260px; max-width: 340px; display: flex; flex-direction: column; gap: 16px; }
+.custos-painel h2, .revisao-checklist h2 { margin-top: 0; }
+.custos-painel label { margin-top: 8px; }
+.painel-total { font-size: 1.6rem; font-weight: 800; margin: 0 0 8px; }
+.painel-divisao { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; font-size: .88rem; }
+.painel-divisao dt { color: var(--texto-suave); } .painel-divisao dd { margin: 0; text-align: right; }
+.linha-total td { border-top: 2px solid var(--borda); }
+/* Revisão: checklist | prévia */
+.revisao-colunas { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.revisao-checklist { flex: 1 1 320px; max-width: 440px; display: flex; flex-direction: column; gap: 16px; }
+.revisao-previa { flex: 999 1 520px; min-width: 0; }
+.previa-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.previa-topo h2 { margin: 0 0 8px; }
+.revisao-previa iframe.preview { height: 80vh; }
+.acoes-etapa { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 16px; }

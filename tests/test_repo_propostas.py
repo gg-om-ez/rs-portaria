@@ -306,3 +306,14 @@ def test_listar_filtra_status_tipo_e_busca_juntos(conn):
 def test_contar_nao_arquivadas(conn):
     _duas_propostas(conn)
     assert rp.contar_nao_arquivadas(conn) == 1
+
+
+def test_totais_por_origem(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.atualizar_dados(conn, pid, {"modo_preco": "semanal"})
+    rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 100000)
+    rp.inserir_linha(conn, pid, "Operacional", "manual", 1, 10000)
+    rp.inserir_linha(conn, pid, "ISS", "manual", 1, 0, percentual=Decimal("0.05"))
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    assert rp.totais_por_origem(conn, pid) == {
+        "mao_de_obra": 100000, "acessorio": 0, "derivada": 0, "manual": 10000, "percentual": 5500}
