@@ -55,3 +55,33 @@ def test_style_css_so_usa_tokens():
 def test_templates_sem_cor_literal():
     for t in Path("app/templates").rglob("*.html"):
         assert _HEX.findall(_sem_root(t.read_text())) == [], t
+
+
+# ---- placeholders ----
+_INPUT = re.compile(r"<input\b[^>]*>", re.S)
+_TIPOS_COM_TEXTO = {"", "text", "search", "email"}
+
+
+def _inputs_de_texto_sem_placeholder(html: str) -> list[str]:
+    faltando = []
+    for tag in _INPUT.findall(html):
+        tipo = re.search(r'type="([^"]*)"', tag)
+        if (tipo.group(1) if tipo else "") in _TIPOS_COM_TEXTO and "placeholder=" not in tag:
+            faltando.append(tag)
+    return faltando
+
+
+def test_campos_de_texto_tem_placeholder(client):
+    for tipo, etapas in [("continuo", ["cliente", "local", "pagamento"]), ("evento", ["local", "pagamento"])]:
+        r = client.post("/propostas/nova", data={"tipo": tipo}, follow_redirects=False)
+        pid = int(r.headers["location"].split("/")[2])
+        for etapa in etapas:
+            html = client.get(f"/propostas/{pid}/{etapa}").text
+            assert _inputs_de_texto_sem_placeholder(html) == [], (tipo, etapa)
+
+
+def test_local_nao_preenche_duracao(client):
+    r = client.post("/propostas/nova", data={"tipo": "continuo"}, follow_redirects=False)
+    pid = int(r.headers["location"].split("/")[2])
+    html = client.get(f"/propostas/{pid}/local").text
+    assert 'name="duracao_meses"' in html and 'value="12"' not in html

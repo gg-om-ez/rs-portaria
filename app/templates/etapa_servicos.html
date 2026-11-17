@@ -30,8 +30,8 @@
       </table>
       </div>
     {% else %}
-      <label>Início do turno <input name="hora_inicio_turno" type="time" data-campo="hora" value="{{ dados.hora_inicio_turno or '18:00' }}" required></label>
-      <label>Fim do turno <input name="hora_fim_turno" type="time" data-campo="hora" value="{{ dados.hora_fim_turno or '06:00' }}" required></label>
+      <label>Início do turno <input name="hora_inicio_turno" type="time" data-campo="hora" value="{{ dados.hora_inicio_turno or '' }}" placeholder="HH:MM" required></label>
+      <label>Fim do turno <input name="hora_fim_turno" type="time" data-campo="hora" value="{{ dados.hora_fim_turno or '' }}" placeholder="HH:MM" required></label>
       {% if escala.modo == "diaria" %}
       <label>Valor da diária por profissional (R$)
         <input name="valor_diaria" inputmode="decimal" placeholder="0,00"
@@ -60,7 +60,7 @@
 
   {% if prop.tipo != "continuo" %}{% include "_funcoes_qtd.html" %}{% endif %}
 
-  <label>Observações <textarea name="observacoes" rows="3">{{ dados.observacoes or '' }}</textarea></label>
+  <label>Observações <textarea name="observacoes" rows="3" placeholder="Opcional">{{ dados.observacoes or '' }}</textarea></label>
   {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
   <button>Calcular custos e continuar</button>
 </form>
