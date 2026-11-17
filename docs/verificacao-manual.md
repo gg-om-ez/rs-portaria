@@ -77,7 +77,29 @@ Reproduz a proposta de referência (serviço contínuo) no app, de ponta a ponta
 - [ ] Rascunho novo criado hoje usa o valor vigente (antigo); a proposta emitida
       anterior não muda.
 
-## 7. Registro de divergências
+## 7. Escalas, diária e linha percentual
+
+Caso de referência (Personalizado): Qua a Sex 09:00-18:15 a R$ 200,00/dia e
+Sáb 08:30-14:00 a R$ 150,00/dia, 1 profissional.
+
+- [ ] Proposta contínua, data de início digitada como `01122026` no desktop →
+      o campo vira `01/12/2026` enquanto digita. No celular abre o seletor nativo.
+- [ ] Serviços: escolher a escala **Personalizado** → os campos de turno somem e
+      aparecem os 7 dias com checkbox, início, fim e valor.
+- [ ] Marcar Qua, Qui, Sex e Sáb com os valores acima e 1 profissional →
+      Custos mostra uma linha de mão de obra de R$ 3.250,00 (750,00/semana x 52/12),
+      sem Alimentação, Transporte, Encargos ou Margem.
+- [ ] Adicionar linha `ISS` com valor `5%` → linha "ISS (5%)" de R$ 162,50; total
+      R$ 3.412,50. Sobrescrever a mão de obra → o ISS recalcula sozinho.
+- [ ] Emitir → o PDF mostra "Escala: Personalizado", a tabela semanal com total
+      R$ 750,00 e mensal estimado R$ 3.250,00, a cláusula de composição mensal e
+      feriados, e datas em dd/mm/aaaa.
+- [ ] Em Configurações > Escalas, mudar **5x2** para "Diária fechada". Nova proposta
+      5x2 com diária R$ 200,00 → mão de obra R$ 4.334,00 (200,00 x 21,67 dias).
+- [ ] Rascunho em 12x36 com mão de obra sobrescrita, trocado para Personalizado →
+      o override é descartado e a linha volta ao valor calculado da nova escala.
+
+## 8. Registro de divergências
 
 Anote aqui tudo que parecer errado, feio ou confuso durante a execução -
 especialmente sobre o visual do PDF, que é a próxima frente de trabalho

@@ -58,6 +58,7 @@ novas funcionalidades.
 - [x] Autenticação por PIN e sessão
 - [x] Dados sensíveis isolados fora do repositório, em banco privado
 - [x] Exportação em PDF
+- [x] Escalas configuráveis (12x36, 6x1, 5x2, 4x3, diárias e personalizada)
 
 ### Curto prazo
 - [ ] Reforço da postura de segurança da aplicação e do banco de dados
@@ -67,6 +68,7 @@ novas funcionalidades.
 ### Médio prazo
 - [ ] Hospedagem sempre disponível (fora do notebook)
 - [ ] Melhorias de usabilidade no fluxo mobile
+- [ ] Reorganização do painel de configurações por modalidade de serviço
 
 ### Futuro
 - [ ] Ideias em aberto conforme o uso amadurecer

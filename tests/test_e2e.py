@@ -148,3 +148,45 @@ def test_mutacao_de_linha_em_proposta_emitida_redireciona(client, tmp_path, monk
         (linha,)).fetchone()
     assert depois["valor_final_centavos"] == antes["valor_final_centavos"]
     assert depois["sobrescrito"] == antes["sobrescrito"]
+
+
+def test_fluxo_escala_personalizada_ate_pdf(client, tmp_path, monkeypatch):
+    """Caso que motivou as escalas: Qua-Sex 09:00-18:15 a R$ 200,00/dia e
+    Sáb 08:30-14:00 a R$ 150,00/dia, 1 profissional, mais ISS de 5%."""
+    monkeypatch.setattr("app.pdf.gerar_pdf", lambda s: b"%PDF-fake")
+    r = client.post("/propostas/nova", data={"tipo": "continuo"}, follow_redirects=False)
+    pid = int(r.headers["location"].split("/")[2])
+    client.post(f"/propostas/{pid}/cliente/novo", data={
+        "razao_social": "Cliente Exemplo Ltda", "cnpj": "11.222.333/0001-81",
+        "endereco": "Av. Exemplo, 1000", "email": "", "telefone": "",
+    })
+    client.post(f"/propostas/{pid}/local", data={
+        "descricao_local": "Loja", "endereco_servico": "Av. Exemplo, 1000",
+        "duracao_meses": "6", "data_inicio": "01/12/2026",
+    })
+    conn = _conn(tmp_path)
+    escala = conn.execute("SELECT id FROM escalas WHERE nome = 'Personalizado'").fetchone()["id"]
+    diurna = conn.execute(
+        "SELECT id FROM funcoes WHERE nome LIKE 'Portaria diurna%'").fetchone()["id"]
+    form = {"escala_id": escala, "trajes": "Fardamento padrão da empresa prestadora",
+            "observacoes": "", f"qtd_{diurna}": "1"}
+    for d in ("qua", "qui", "sex"):
+        form.update({f"dia_{d}_ativo": "on", f"dia_{d}_inicio": "09:00",
+                     f"dia_{d}_fim": "18:15", f"dia_{d}_valor": "200,00"})
+    form.update({"dia_sab_ativo": "on", "dia_sab_inicio": "08:30",
+                 "dia_sab_fim": "14:00", "dia_sab_valor": "150,00"})
+    assert client.post(f"/propostas/{pid}/servicos", data=form,
+                       follow_redirects=False).status_code == 303
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "ISS", "valor": "5%"})
+    client.post(f"/propostas/{pid}/pagamento", data={
+        "formas_pagamento": ["PIX"], "vencimento": "todo dia 05"})
+
+    r = client.post(f"/propostas/{pid}/emitir", follow_redirects=False)
+    assert r.status_code == 303
+
+    snap = json.loads(conn.execute(
+        "SELECT snapshot_json FROM propostas WHERE id=?", (pid,)).fetchone()[0])
+    assert snap["total_centavos"] == 341250 and snap["total_fmt"] == "3.412,50"
+    assert snap["dados"]["data_inicio"] == "2026-12-01"
+    assert {l["categoria"] for l in snap["linhas"]} == {"mao_de_obra", "manual"}
+    assert (snap["escala"]["semanal_centavos"], snap["escala"]["mensal_centavos"]) == (75000, 325000)
