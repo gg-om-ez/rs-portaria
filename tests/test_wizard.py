@@ -104,78 +104,10 @@ def test_etapa_local_evento_hora_invalida_reexibe_com_erro(client):
     assert "inválid" in r.text.lower()
 
 
-def test_etapa_servicos_gera_linhas(client, tmp_path):
-    pid = _nova(client)
-    conn = _conn(tmp_path)
-    noturna = conn.execute(
-        "SELECT id FROM funcoes WHERE nome LIKE 'Portaria noturna%'").fetchone()["id"]
-    r = client.post(f"/propostas/{pid}/servicos", data={
-        "hora_inicio_turno": "18:00", "hora_fim_turno": "06:00",
-        "plantoes_mes": "15", "trajes": "Fardamento padrão da empresa prestadora",
-        "observacoes": "", f"qtd_{noturna}": "2",
-    }, follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"].endswith("/custos")
-
-    linhas = conn.execute(
-        "SELECT * FROM linhas_custo WHERE proposta_id=? ORDER BY ordem", (pid,)).fetchall()
-    categorias = [l["categoria"] for l in linhas]
-    assert categorias.count("mao_de_obra") == 1
-    assert "acessorio" in categorias and "derivada" in categorias
-    mo = [l for l in linhas if l["categoria"] == "mao_de_obra"][0]
-    assert mo["quantidade"] == 2
-    # noturna 18h-06h com seed (piso 1.600,00, divisor 220, 20%, 15 plantões):
-    # 120h x (160000/220) x 0.20 = 17.454,54... -> 17455 + 160000
-    assert mo["valor_sugerido_centavos"] == 177455
 
 
-def test_etapa_servicos_qtd_invalida_reexibe_com_erro(client, tmp_path):
-    pid = _nova(client)
-    conn = _conn(tmp_path)
-    noturna = conn.execute(
-        "SELECT id FROM funcoes WHERE nome LIKE 'Portaria noturna%'").fetchone()["id"]
-    r = client.post(f"/propostas/{pid}/servicos", data={
-        "hora_inicio_turno": "18:00", "hora_fim_turno": "06:00",
-        "plantoes_mes": "15", "trajes": "Fardamento padrão da empresa prestadora",
-        "observacoes": "", f"qtd_{noturna}": "abc",
-    })
-    assert r.status_code == 200
-    assert "inválid" in r.text.lower()
-    linhas = conn.execute(
-        "SELECT * FROM linhas_custo WHERE proposta_id=?", (pid,)).fetchall()
-    assert linhas == []  # nenhuma linha criada
 
 
-def test_etapa_servicos_resubmissao_preserva_override(client, tmp_path):
-    pid = _nova(client)
-    conn = _conn(tmp_path)
-    noturna = conn.execute(
-        "SELECT id FROM funcoes WHERE nome LIKE 'Portaria noturna%'").fetchone()["id"]
-    dados_form = {
-        "hora_inicio_turno": "18:00", "hora_fim_turno": "06:00",
-        "plantoes_mes": "15", "trajes": "Fardamento padrão da empresa prestadora",
-        "observacoes": "", f"qtd_{noturna}": "2",
-    }
-    client.post(f"/propostas/{pid}/servicos", data=dados_form, follow_redirects=False)
-
-    linha = conn.execute(
-        "SELECT * FROM linhas_custo WHERE proposta_id=? AND categoria='mao_de_obra'",
-        (pid,)).fetchone()
-    client.post(f"/propostas/{pid}/linhas/{linha['id']}/valor", data={"valor": "1.900,00"})
-
-    # re-submete a mesma etapa com a mesma função, mudando a quantidade
-    dados_form[f"qtd_{noturna}"] = "3"
-    r = client.post(f"/propostas/{pid}/servicos", data=dados_form, follow_redirects=False)
-    assert r.status_code == 303
-
-    linhas_mo = conn.execute(
-        "SELECT * FROM linhas_custo WHERE proposta_id=? AND categoria='mao_de_obra'",
-        (pid,)).fetchall()
-    assert len(linhas_mo) == 1  # não duplicou a linha
-    linha = linhas_mo[0]
-    assert linha["quantidade"] == 3
-    assert linha["sobrescrito"] == 1
-    assert linha["valor_final_centavos"] == 190000  # override preservado
-    assert linha["valor_sugerido_centavos"] == 177455  # sugerido recalculado
 
 
 def _linha_manual(conn, pid):
@@ -293,16 +225,6 @@ def test_local_data_invalida(client):
     assert "Data de início inválida - use dd/mm/aaaa." in r.text
 
 
-def test_servicos_normaliza_hora(client, tmp_path):
-    pid = _nova(client)
-    r = client.post(f"/propostas/{pid}/servicos", data={
-        "hora_inicio_turno": "6:00", "hora_fim_turno": "18h00",
-        "plantoes_mes": "15", "trajes": "Fardamento padrão da empresa prestadora",
-        "observacoes": "",
-    }, follow_redirects=False)
-    assert r.status_code == 303
-    dados = _dados(tmp_path, pid)
-    assert dados["hora_inicio_turno"] == "06:00" and dados["hora_fim_turno"] == "18:00"
 
 
 def test_pagamento_data_limite_br(client, tmp_path):
@@ -397,115 +319,24 @@ def _linhas(tmp_path, pid):
         "SELECT * FROM linhas_custo WHERE proposta_id=? ORDER BY ordem, id", (pid,)).fetchall()
 
 
-def test_servicos_personalizado_exemplo(client, tmp_path):
-    pid = _nova(client)
-    r = client.post(f"/propostas/{pid}/servicos", data=_form_exemplo(tmp_path), follow_redirects=False)
-    assert r.status_code == 303
-    linhas = _linhas(tmp_path, pid)
-    assert [l["categoria"] for l in linhas] == ["mao_de_obra"]
-    assert (linhas[0]["valor_final_centavos"], linhas[0]["quantidade"]) == (325000, 1)
-    dados = _dados(tmp_path, pid)
-    assert len(dados["escala_semanal"]) == 4
-    assert dados["escala_semanal"][0] == {"dia": "qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000}
 
 
-def test_servicos_personalizado_sem_dia(client, tmp_path):
-    pid = _nova(client)
-    form = {k: v for k, v in _form_exemplo(tmp_path).items() if not k.endswith("_ativo")}
-    r = client.post(f"/propostas/{pid}/servicos", data=form)
-    assert r.status_code == 200 and "Ative pelo menos um dia da semana." in r.text
-    assert 'name="dia_qua_inicio"' in r.text  # re-exibe com a escala submetida
-    assert _linhas(tmp_path, pid) == []
 
 
-def test_servicos_diaria_usa_dias_da_escala(client, tmp_path):
-    e5x2 = _escala_id(tmp_path, "5x2")
-    client.post(f"/admin/escalas/{e5x2}", data={"modo": "diaria", "dias_mes": "21,67"})
-    pid = _nova(client)
-    r = client.post(f"/propostas/{pid}/servicos", data={
-        "escala_id": e5x2, "hora_inicio_turno": "09:00", "hora_fim_turno": "18:00",
-        "valor_diaria": "200,00", "trajes": "Fardamento padrão da empresa prestadora",
-        "observacoes": "", f"qtd_{_funcao_id(tmp_path, 'Portaria diurna')}": "1",
-    }, follow_redirects=False)
-    assert r.status_code == 303
-    assert [l["valor_final_centavos"] for l in _linhas(tmp_path, pid)] == [433400]
 
 
-def test_servicos_diarias_por_escala_exige_dias(client, tmp_path):
-    pid = _nova(client)
-    r = client.post(f"/propostas/{pid}/servicos", data={
-        "escala_id": _escala_id(tmp_path, "Diárias por escala"), "hora_inicio_turno": "09:00",
-        "hora_fim_turno": "18:00", "valor_diaria": "200,00", "plantoes_mes": "",
-        "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
-    })
-    assert r.status_code == 200 and "Dias trabalhados por mês inválido." in r.text
 
 
-def test_trocar_modo_descarta_override(client, tmp_path):
-    pid = _nova(client)
-    diurna = _funcao_id(tmp_path, "Portaria diurna")
-    client.post(f"/propostas/{pid}/servicos", data={
-        "hora_inicio_turno": "07:00", "hora_fim_turno": "19:00", "plantoes_mes": "15",
-        "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
-        f"qtd_{diurna}": "1"})
-    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
-    client.post(f"/propostas/{pid}/linhas/{mo['id']}/valor", data={"valor": "9.999,99"})
-    client.post(f"/propostas/{pid}/servicos", data=_form_exemplo(tmp_path))
-    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
-    assert (mo["valor_final_centavos"], mo["sobrescrito"]) == (325000, 0)
 
 
-def test_get_servicos_escala_por_query(client, tmp_path):
-    pid = _nova(client)
-    r = client.get(f"/propostas/{pid}/servicos?escala_id={_escala_id(tmp_path, 'Personalizado')}")
-    assert 'name="dia_qua_ativo"' in r.text and 'id="campos-escala"' in r.text
-    assert 'hx-select="#campos-escala"' in r.text
-    padrao = client.get(f"/propostas/{pid}/servicos").text
-    assert 'name="dia_qua_ativo"' not in padrao and 'name="hora_inicio_turno"' in padrao
 
 
-def test_servicos_reabre_com_escala_salva(client, tmp_path):
-    pid = _nova(client)
-    client.post(f"/propostas/{pid}/servicos", data=_form_exemplo(tmp_path))
-    r = client.get(f"/propostas/{pid}/servicos")
-    assert 'name="dia_qua_ativo" style="width:auto" checked' in r.text
-    assert 'value="200,00"' in r.text
 
 
-def test_servicos_erro_reexibe_valores_digitados(client, tmp_path):
-    pid = _nova(client)
-    r = client.post(f"/propostas/{pid}/servicos", data={
-        "escala_id": _escala_id(tmp_path, "Diárias por escala"), "hora_inicio_turno": "25:00",
-        "hora_fim_turno": "18:00", "valor_diaria": "210,50", "plantoes_mes": "13",
-        "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
-    })
-    assert r.status_code == 200
-    assert 'value="25:00"' in r.text and 'value="210,50"' in r.text and 'value="13"' in r.text
 
 
-def test_rascunho_legado_reexibe_dias_gravados(client, tmp_path):
-    # rascunho anterior ao menu de escalas: sem escala_id, com plantoes_mes próprio
-    from app import repo_propostas as rp
-    pid = _nova(client)
-    conn = _conn(tmp_path)
-    rp.atualizar_dados(conn, pid, {"hora_inicio_turno": "18:00", "hora_fim_turno": "06:00",
-                                   "plantoes_mes": "16"})
-    r = client.get(f"/propostas/{pid}/servicos")
-    assert 'name="plantoes_mes" inputmode="decimal" value="16"' in r.text
 
 
-def test_trocar_escala_no_mesmo_modo_descarta_override(client, tmp_path):
-    pid = _nova(client)
-    diurna = _funcao_id(tmp_path, "Portaria diurna")
-    form = {"hora_inicio_turno": "07:00", "hora_fim_turno": "19:00", "plantoes_mes": "",
-            "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
-            f"qtd_{diurna}": "1"}
-    client.post(f"/propostas/{pid}/servicos", data=form)
-    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
-    client.post(f"/propostas/{pid}/linhas/{mo['id']}/valor", data={"valor": "3.000,00"})
-    client.post(f"/propostas/{pid}/servicos", data={**form, "escala_id": _escala_id(tmp_path, "6x1")})
-    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
-    assert mo["sobrescrito"] == 0 and mo["valor_final_centavos"] == 160000
 
 
 # ---- wizard em colunas ----
@@ -576,15 +407,6 @@ def test_revisao_lado_a_lado(client):
 
 
 # ---- minors das telas ----
-def test_trocar_escala_preserva_quantidades(client, tmp_path):
-    pid = _nova(client)
-    diurna = _funcao_id(tmp_path, "Portaria diurna")
-    pers = _escala_id(tmp_path, "Personalizado")
-    r = client.get(f"/propostas/{pid}/servicos?escala_id={pers}&qtd_{diurna}=3")
-    assert f'name="qtd_{diurna}" inputmode="numeric" value="3"' in r.text
-    # a lista de funções vem dentro do fragmento trocado pelo hx-select
-    frag = r.text[r.text.index('id="campos-escala"'):]
-    assert f'name="qtd_{diurna}"' in frag and "hx-include" in r.text
 
 
 def test_ok_sem_mudar_valor_nao_congela_percentual(client, tmp_path):

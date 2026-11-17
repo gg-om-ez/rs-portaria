@@ -38,23 +38,25 @@ def avaliar(conn: sqlite3.Connection, pid: int) -> list[ItemChecklist]:
         ItemChecklist("Forma de pagamento definida", _tem(dados, "formas_pagamento"), True, "pagamento"),
     ]
     if prop["tipo"] == "continuo":
-        modo = escalas.modo_de(dados)
         itens.append(ItemChecklist("Duração do contrato e data de início",
                                    _tem(dados, "duracao_meses") and _tem(dados, "data_inicio"), True,
                                    "local"))
-        if modo == "semanal":
-            # Personalizado: horários ficam em cada dia ativo, não num turno único
-            itens.append(ItemChecklist("Pelo menos um dia ativo na escala",
-                                       bool(dados.get("escala_semanal")), True, "servicos"))
-        else:
-            itens.append(ItemChecklist(
-                "Horários do turno definidos",
-                _tem(dados, "hora_inicio_turno") and _tem(dados, "hora_fim_turno"), True, "servicos"))
-        if modo == "diaria":
-            itens.append(ItemChecklist(
-                "Valor da diária e dias por mês",
-                bool(dados.get("valor_diaria_centavos")) and _tem(dados, "plantoes_mes"), True,
-                "servicos"))
+        # Um conjunto de itens por cartão de função, cada um com a sua escala
+        for f in escalas.funcoes_da_proposta(dados, linhas):
+            nome, modo = f["nome"], escalas.modo_de(f)
+            if modo == "semanal":
+                # Personalizado: horários ficam em cada dia ativo, não num turno único
+                itens.append(ItemChecklist(f"{nome}: Pelo menos um dia ativo na escala",
+                                           bool(f.get("escala_semanal")), True, "servicos"))
+            else:
+                itens.append(ItemChecklist(
+                    f"{nome}: Horários do turno definidos",
+                    _tem(f, "hora_inicio_turno") and _tem(f, "hora_fim_turno"), True, "servicos"))
+            if modo == "diaria":
+                itens.append(ItemChecklist(
+                    f"{nome}: Valor da diária e dias por mês",
+                    bool(f.get("valor_diaria_centavos")) and _tem(f, "plantoes_mes"), True,
+                    "servicos"))
         itens.append(ItemChecklist("Vencimento acordado", _tem(dados, "vencimento"), True, "pagamento"))
     else:
         itens += [

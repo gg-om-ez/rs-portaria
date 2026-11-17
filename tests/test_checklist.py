@@ -92,9 +92,9 @@ def test_semanal_exige_dia_ativo(conn):
     rp.atualizar_dados(conn, pid, {"modo_preco": "semanal", "escala_semanal": [],
                                    "hora_inicio_turno": "", "hora_fim_turno": ""})
     itens = _rotulos(conn, pid)
-    item = itens["Pelo menos um dia ativo na escala"]
+    item = itens["Portaria noturna: Pelo menos um dia ativo na escala"]
     assert item.critico and not item.ok
-    assert "Horários do turno definidos" not in itens
+    assert "Portaria noturna: Horários do turno definidos" not in itens
     rp.atualizar_dados(conn, pid, {"escala_semanal": SEMANA})
     assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is True
 
@@ -102,17 +102,17 @@ def test_semanal_exige_dia_ativo(conn):
 def test_diaria_exige_valor_e_dias(conn):
     pid = _completa_continuo(conn)
     rp.atualizar_dados(conn, pid, {"modo_preco": "diaria"})
-    item = _rotulos(conn, pid)["Valor da diária e dias por mês"]
+    item = _rotulos(conn, pid)["Portaria noturna: Valor da diária e dias por mês"]
     assert item.critico and not item.ok
     rp.atualizar_dados(conn, pid, {"valor_diaria_centavos": 20000, "plantoes_mes": "21.67"})
-    assert _rotulos(conn, pid)["Valor da diária e dias por mês"].ok
+    assert _rotulos(conn, pid)["Portaria noturna: Valor da diária e dias por mês"].ok
 
 
 def test_piso_e_legado_mantem_turno(conn):
     pid = _completa_continuo(conn)
     itens = _rotulos(conn, pid)
-    assert "Horários do turno definidos" in itens
-    assert "Pelo menos um dia ativo na escala" not in itens
+    assert "Portaria noturna: Horários do turno definidos" in itens
+    assert "Portaria noturna: Pelo menos um dia ativo na escala" not in itens
 
 
 # ---- estado por etapa (navegação vertical) ----

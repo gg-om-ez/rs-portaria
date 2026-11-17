@@ -188,3 +188,11 @@ def test_lote_texto_apagado_limpa_o_valor(client, tmp_path):
         follow_redirects=False)
     assert r.status_code == 303
     assert tuple(_vig(tmp_path, "obs_finais_continuo")) == ("", "2026-12-01")
+
+
+def test_admin_edita_nome_funcao(client, tmp_path):
+    fid = _conn(tmp_path).execute("SELECT id FROM funcoes WHERE nome LIKE 'Portaria diurna%'").fetchone()[0]
+    r = client.post(f"/admin/funcoes/{fid}", data={"nome": "Portaria diurna", "valor_base": "1.600,00",
+                                                   "ativa": "on"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert _conn(tmp_path).execute("SELECT nome FROM funcoes WHERE id=?", (fid,)).fetchone()[0] == "Portaria diurna"

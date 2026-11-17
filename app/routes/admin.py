@@ -98,10 +98,12 @@ def criar_funcao(request: Request, nome: str = Form(...), tipo: str = Form(...),
 
 @router.post("/funcoes/{fid}")
 def atualizar_funcao(request: Request, fid: int, valor_base: str = Form(""),
-                     ativa: str = Form(""), conn=Depends(conn_dep)):
+                     ativa: str = Form(""), nome: str = Form(""), conn=Depends(conn_dep)):
     try:
-        rcat.atualizar_funcao(conn, fid, valor_base_centavos=parse_brl(valor_base),
-                              ativa=int(bool(ativa)))
+        campos = {"valor_base_centavos": parse_brl(valor_base), "ativa": int(bool(ativa))}
+        if nome.strip():
+            campos["nome"] = nome.strip()
+        rcat.atualizar_funcao(conn, fid, **campos)
     except ValueError as exc:
         return _render(request, conn, secao_por_id("catalogo-funcoes"), erro=str(exc))
     return RedirectResponse("/admin?secao=catalogo-funcoes", status_code=303)

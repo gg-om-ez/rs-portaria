@@ -135,3 +135,11 @@ iframe.preview { width: 100%; height: 70vh; border: 1px solid var(--borda); bord
 .sentinela input { width: auto; margin: 0; }
 .sentinela:has(input:checked) { background: var(--neutro-claro); font-weight: 700; }
 input:disabled { background: var(--fundo); color: var(--texto-suave); }
+
+/* Etapa Serviços: um cartão por função */
+#funcoes { display: flex; flex-direction: column; gap: 14px; margin: 8px 0 12px; }
+.funcao-card { border: 1px solid var(--borda); box-shadow: none; }
+.funcao-topo, .funcao-campos { display: flex; flex-wrap: wrap; gap: 0 16px; align-items: flex-end; }
+.funcao-topo label, .funcao-campos label { flex: 1 1 180px; }
+.funcao-topo .funcao-qtd { flex: 0 1 120px; }
+.funcao-remover { margin-bottom: 4px; }

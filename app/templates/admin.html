@@ -73,7 +73,8 @@
     {% elif sec.id == "catalogo-funcoes" %}
 {% for f in funcoes %}
     <form method="post" action="/admin/funcoes/{{ f.id }}" class="cartao" style="margin-bottom:8px">
-      <strong>{{ f.nome }}</strong> ({{ f.tipo }}{{ ", com adicional noturno" if f.aplica_noturno }})
+      <label>Nome <input name="nome" value="{{ f.nome }}" placeholder="Ex.: Portaria diurna"></label>
+      <small>{{ "Serviço contínuo" if f.tipo == "continuo" else "Evento" }}{{ ", com adicional noturno" if f.aplica_noturno }}</small>
       <label>Valor-base (R$) <input name="valor_base" value="{{ f.valor_base_centavos | brl }}"></label>
       <label style="font-weight:400"><input type="checkbox" name="ativa" style="width:auto"
         {{ 'checked' if f.ativa }}> Ativa</label>

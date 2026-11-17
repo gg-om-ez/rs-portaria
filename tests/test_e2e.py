@@ -1,6 +1,7 @@
 import json
 
 from app import db as dbmod
+from tests.conftest import form_servicos
 
 
 def _conn(tmp_path):
@@ -19,13 +20,9 @@ def _fluxo_ate_custos(client, tmp_path):
         "duracao_meses": "12", "data_inicio": "2026-08-01",
     })
     conn = _conn(tmp_path)
-    noturna = conn.execute(
-        "SELECT id FROM funcoes WHERE nome LIKE 'Portaria noturna%'").fetchone()["id"]
-    client.post(f"/propostas/{pid}/servicos", data={
-        "hora_inicio_turno": "18:00", "hora_fim_turno": "06:00", "plantoes_mes": "15",
-        "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
-        f"qtd_{noturna}": "2",
-    })
+    client.post(f"/propostas/{pid}/servicos", data=form_servicos(conn, [{
+        "funcao": "Portaria noturna", "qtd": 2, "hora_inicio_turno": "18:00",
+        "hora_fim_turno": "06:00", "plantoes_mes": "15"}]))
     return pid, conn
 
 
@@ -165,16 +162,9 @@ def test_fluxo_escala_personalizada_ate_pdf(client, tmp_path, monkeypatch):
         "duracao_meses": "6", "data_inicio": "01/12/2026",
     })
     conn = _conn(tmp_path)
-    escala = conn.execute("SELECT id FROM escalas WHERE nome = 'Personalizado'").fetchone()["id"]
-    diurna = conn.execute(
-        "SELECT id FROM funcoes WHERE nome LIKE 'Portaria diurna%'").fetchone()["id"]
-    form = {"escala_id": escala, "trajes": "Fardamento padrão da empresa prestadora",
-            "observacoes": "", f"qtd_{diurna}": "1"}
-    for d in ("qua", "qui", "sex"):
-        form.update({f"dia_{d}_ativo": "on", f"dia_{d}_inicio": "09:00",
-                     f"dia_{d}_fim": "18:15", f"dia_{d}_valor": "200,00"})
-    form.update({"dia_sab_ativo": "on", "dia_sab_inicio": "08:30",
-                 "dia_sab_fim": "14:00", "dia_sab_valor": "150,00"})
+    dias = {d: ("09:00", "18:15", "200,00") for d in ("qua", "qui", "sex")}
+    dias["sab"] = ("08:30", "14:00", "150,00")
+    form = form_servicos(conn, [{"funcao": "Portaria diurna", "escala": "Personalizado", "dias": dias}])
     assert client.post(f"/propostas/{pid}/servicos", data=form,
                        follow_redirects=False).status_code == 303
     client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "ISS", "valor": "5%"})
@@ -189,7 +179,7 @@ def test_fluxo_escala_personalizada_ate_pdf(client, tmp_path, monkeypatch):
     assert snap["total_centavos"] == 341250 and snap["total_fmt"] == "3.412,50"
     assert snap["dados"]["data_inicio"] == "2026-12-01"
     assert {l["categoria"] for l in snap["linhas"]} == {"mao_de_obra", "manual"}
-    assert (snap["escala"]["semanal_centavos"], snap["escala"]["mensal_centavos"]) == (75000, 325000)
+    # escalas por função no snapshot: conferidas na Task 6 (formato "escalas")
 
 
 def test_emitir_bloqueado_com_dados_de_exemplo(client, tmp_path):

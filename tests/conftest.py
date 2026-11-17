@@ -55,3 +55,38 @@ def client(tmp_path, monkeypatch):
     configurar_empresa(c)
     c.close()
     return tc
+
+
+def form_servicos(conn, cartoes: list[dict], trajes: str = "Fardamento padrão da empresa prestadora",
+                  observacoes: str = "") -> dict:
+    """Monta o POST da etapa Serviços (contínuo) com um cartão por função.
+
+    Cada cartão: funcao (prefixo do nome no catálogo, ou "personalizada" com nome),
+    qtd, escala (nome), e os campos da escala: hora_inicio_turno, hora_fim_turno,
+    plantoes_mes, valor_diaria, piso, dias={"qua": ("09:00", "18:15", "200,00")}.
+    """
+    data = {"funcao": [], "trajes": trajes, "observacoes": observacoes}
+    for i, c in enumerate(cartoes):
+        chave = c.get("chave", f"c{i}")
+        p = f"f_{chave}_"
+        data["funcao"].append(chave)
+        funcao = c.get("funcao", "Portaria diurna")
+        if funcao == "personalizada":
+            data[p + "funcao"] = "personalizada"
+            data[p + "nome"] = c.get("nome", "")
+        else:
+            data[p + "funcao"] = str(conn.execute(
+                "SELECT id FROM funcoes WHERE nome LIKE ?", (funcao + "%",)).fetchone()[0])
+        data[p + "qtd"] = str(c.get("qtd", 1))
+        data[p + "escala_id"] = str(conn.execute(
+            "SELECT id FROM escalas WHERE nome = ?", (c.get("escala", "12x36"),)).fetchone()[0])
+        if "dias" not in c:
+            data[p + "hora_inicio_turno"] = c.get("hora_inicio_turno", "07:00")
+            data[p + "hora_fim_turno"] = c.get("hora_fim_turno", "19:00")
+        for campo in ("plantoes_mes", "valor_diaria", "piso"):
+            if campo in c:
+                data[p + campo] = c[campo]
+        for dia, (ini, fim, valor) in c.get("dias", {}).items():
+            data.update({p + f"dia_{dia}_ativo": "on", p + f"dia_{dia}_inicio": ini,
+                         p + f"dia_{dia}_fim": fim, p + f"dia_{dia}_valor": valor})
+    return data
