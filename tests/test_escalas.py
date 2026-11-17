@@ -19,11 +19,12 @@ def test_modo_de_padrao_piso():
     assert escalas.modo_de({"modo_preco": "semanal"}) == "semanal"
 
 
-def test_usa_motor_completo():
-    assert escalas.usa_motor_completo("evento", {"modo_preco": "semanal"}) is True
-    assert escalas.usa_motor_completo("continuo", {}) is True
-    assert escalas.usa_motor_completo("continuo", {"modo_preco": "diaria"}) is False
-    assert escalas.usa_motor_completo("continuo", {"modo_preco": "semanal"}) is False
+def test_modo_da_linha():
+    linha = lambda m: {"modo_preco": m}
+    assert escalas.modo_da_linha(linha("diaria"), "continuo", {"modo_preco": "semanal"}) == "diaria"
+    assert escalas.modo_da_linha(linha(None), "continuo", {"modo_preco": "semanal"}) == "semanal"
+    assert escalas.modo_da_linha(linha(None), "continuo", {}) == "piso_mensal"
+    assert escalas.modo_da_linha(linha(None), "evento", {"modo_preco": "semanal"}) == "piso_mensal"
 
 
 def test_valor_semanal():
@@ -34,24 +35,24 @@ def test_valor_semanal():
 def test_sugerido_piso_sem_noturno():
     dados = {"modo_preco": "piso_mensal", "hora_inicio_turno": "07:00",
              "hora_fim_turno": "19:00", "plantoes_mes": "15"}
-    assert escalas.sugerido_mensal(SEM_NOTURNO, dados, P) == 160000
+    assert escalas.sugerido_mensal(dados, P, SEM_NOTURNO) == 160000
 
 
 def test_sugerido_piso_noturno_igual_ao_calculo_original():
     noturna = {"valor_base_centavos": 160000, "aplica_noturno": 1}
     dados = {"hora_inicio_turno": "18:00", "hora_fim_turno": "06:00", "plantoes_mes": "15"}
-    assert escalas.sugerido_mensal(noturna, dados, P) == 177455
+    assert escalas.sugerido_mensal(dados, P, noturna) == 177455
     sem_plantoes = {"hora_inicio_turno": "18:00", "hora_fim_turno": "06:00"}
-    assert escalas.sugerido_mensal(noturna, sem_plantoes, P) == 177455
+    assert escalas.sugerido_mensal(sem_plantoes, P, noturna) == 177455
 
 
 def test_sugerido_semanal():
-    assert escalas.sugerido_mensal(SEM_NOTURNO, {"modo_preco": "semanal", "escala_semanal": SEMANA}, P) == 325000
+    assert escalas.sugerido_mensal({"modo_preco": "semanal", "escala_semanal": SEMANA}, P, SEM_NOTURNO) == 325000
 
 
 def test_sugerido_diaria():
     dados = {"modo_preco": "diaria", "valor_diaria_centavos": 20000, "plantoes_mes": "21.67"}
-    assert escalas.sugerido_mensal(SEM_NOTURNO, dados, P) == 433400
+    assert escalas.sugerido_mensal(dados, P, SEM_NOTURNO) == 433400
 
 
 # ---- ler_form_escala ----
@@ -119,3 +120,32 @@ def test_ler_form_erros_turno(escala, form, mensagem):
 def test_ler_form_dias_acima_de_31():
     form = {"hora_inicio_turno": "06:00", "hora_fim_turno": "18:00", "plantoes_mes": "32"}
     assert escalas.ler_form_escala(E12X36, form)[1] == "Dias trabalhados por mês inválido."
+
+
+
+def test_sugerido_personalizada_piso():
+    cfg = {"modo_preco": "piso_mensal", "piso_centavos": 150000, "hora_inicio_turno": "08:00",
+           "hora_fim_turno": "17:00", "plantoes_mes": "21.67"}
+    assert escalas.sugerido_mensal(cfg, P, None) == 150000
+
+
+def test_funcoes_da_proposta_deriva_legado():
+    dados = {"escala_id": "6", "escala_nome": "Personalizado", "modo_preco": "semanal", "escala_semanal": SEMANA}
+    linhas = [{"id": 7, "categoria": "mao_de_obra", "funcao_id": 1, "descricao": "Portaria", "quantidade": 2},
+              {"id": 8, "categoria": "manual", "funcao_id": None, "descricao": "ISS", "quantidade": 1}]
+    fs = escalas.funcoes_da_proposta(dados, linhas)
+    assert len(fs) == 1
+    f = fs[0]
+    assert (f["chave"], f["funcao_id"], f["nome"], f["quantidade"]) == ("l7", 1, "Portaria", 2)
+    assert (f["modo_preco"], f["escala_nome"], f["escala_semanal"]) == ("semanal", "Personalizado", SEMANA)
+
+
+def test_funcoes_da_proposta_legado_sem_escala_e_12x36():
+    linhas = [{"id": 3, "categoria": "mao_de_obra", "funcao_id": 2, "descricao": "Portaria", "quantidade": 1}]
+    f = escalas.funcoes_da_proposta({}, linhas)[0]
+    assert (f["modo_preco"], f["escala_nome"], f["plantoes_mes"]) == ("piso_mensal", "12x36", "15")
+
+
+def test_funcoes_da_proposta_usa_lista_quando_existe():
+    lista = [{"chave": "a1", "nome": "Jardineiro"}]
+    assert escalas.funcoes_da_proposta({"funcoes": lista, "modo_preco": "semanal"}, []) == lista

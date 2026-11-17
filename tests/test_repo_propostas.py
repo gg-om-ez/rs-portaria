@@ -317,3 +317,39 @@ def test_totais_por_origem(conn):
     rp.recalcular_derivadas(conn, pid, PARAMS)
     assert rp.totais_por_origem(conn, pid) == {
         "mao_de_obra": 100000, "acessorio": 0, "derivada": 0, "manual": 10000, "percentual": 5500}
+
+
+# ---- escala por função: motor por linha ----
+def test_proposta_mista_motor_so_sobre_piso(conn):
+    rcat.seed_inicial(conn)
+    params = rcat.params_vigentes(conn)
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Portaria - 12x36", "mao_de_obra", 1, 160000,
+                     chave_funcao="a1", modo_preco="piso_mensal")
+    rp.inserir_linha(conn, pid, "Jardineiro - Diárias", "mao_de_obra", 1, 433400,
+                     chave_funcao="b2", modo_preco="diaria")
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, params)
+    linhas = {l["descricao"]: l for l in rp.linhas_da_proposta(conn, pid)}
+    assert linhas["Alimentação"]["quantidade"] == 1 and linhas["Transporte"]["quantidade"] == 1
+    assert linhas["Encargos sociais"]["valor_final_centavos"] == 92800
+    assert linhas["Margem administrativa"]["valor_final_centavos"] == 32880
+    assert rp.total_proposta(conn, pid) == 795080
+
+
+def test_so_diaria_sem_acessorios_nem_derivadas(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Jardineiro", "mao_de_obra", 2, 65000, chave_funcao="x", modo_preco="semanal")
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    assert {l["categoria"] for l in rp.linhas_da_proposta(conn, pid)} == {"mao_de_obra"}
+
+
+def test_atualizar_linha_mao_de_obra_grava_descricao_e_modo(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    lid = rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 160000)
+    rp.atualizar_linha_mao_de_obra(conn, lid, 2, 170000, descricao="Portaria - 6x1",
+                                   modo_preco="piso_mensal", chave_funcao="k1")
+    l = rp.linhas_da_proposta(conn, pid)[0]
+    assert (l["quantidade"], l["descricao"], l["modo_preco"], l["chave_funcao"]) == (
+        2, "Portaria - 6x1", "piso_mensal", "k1")

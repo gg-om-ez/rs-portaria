@@ -17,7 +17,9 @@ _LINHAS_CUSTO_DDL = """(
     valor_final_centavos INTEGER NOT NULL,
     sobrescrito INTEGER NOT NULL DEFAULT 0,
     ordem INTEGER NOT NULL DEFAULT 1,
-    percentual TEXT  -- fração Decimal em texto; NULL = linha de valor fixo (v1.2)
+    percentual TEXT,  -- fração Decimal em texto; NULL = linha de valor fixo (v1.2)
+    chave_funcao TEXT,  -- liga a linha de mão de obra ao cartão de função (v1.3)
+    modo_preco TEXT  -- piso_mensal | diaria | semanal; NULL = legado, ver escalas.modo_da_linha
 )"""
 
 SCHEMA = """
@@ -121,18 +123,23 @@ def _migrar_categoria_manual(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
-def _migrar_coluna_percentual(conn: sqlite3.Connection) -> None:
-    """Bancos pré-v1.2 não têm linhas_custo.percentual. Roda antes do rebuild de
+# Colunas acrescentadas depois da v1, na ordem do DDL (ADD COLUMN põe no fim)
+_COLUNAS_NOVAS = (("percentual", "TEXT"), ("chave_funcao", "TEXT"), ("modo_preco", "TEXT"))
+
+
+def _migrar_colunas_novas(conn: sqlite3.Connection) -> None:
+    """Acrescenta as colunas que faltam em linhas_custo. Roda antes do rebuild de
     categoria para a tabela antiga ter as mesmas colunas, na mesma ordem, do DDL."""
     colunas = {r["name"] for r in conn.execute("PRAGMA table_info(linhas_custo)")}
-    if "percentual" not in colunas:
-        conn.execute("ALTER TABLE linhas_custo ADD COLUMN percentual TEXT")
-        conn.commit()
+    for nome, tipo in _COLUNAS_NOVAS:
+        if nome not in colunas:
+            conn.execute(f"ALTER TABLE linhas_custo ADD COLUMN {nome} {tipo}")
+    conn.commit()
 
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
-    _migrar_coluna_percentual(conn)
+    _migrar_colunas_novas(conn)
     _migrar_categoria_manual(conn)
     conn.commit()
 

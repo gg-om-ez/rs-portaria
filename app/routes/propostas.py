@@ -310,7 +310,7 @@ async def salvar_servicos(request: Request, pid: int, conn=Depends(conn_dep)):
             if tipo == "evento":
                 sugerido = funcao["valor_base_centavos"]
             else:
-                sugerido = escalas.sugerido_mensal(funcao, dados, params)
+                sugerido = escalas.sugerido_mensal(dados, params, funcao)
             if funcao["id"] in existentes:
                 rp.atualizar_linha_mao_de_obra(conn, existentes[funcao["id"]]["id"], qtd, sugerido)
             else:
