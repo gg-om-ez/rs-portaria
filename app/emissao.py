@@ -26,42 +26,51 @@ def _dias_fmt(dias: str) -> str:
     return str(dias).replace(".", ",")
 
 
-def _nota_metodologica(conn: sqlite3.Connection, tipo: str, dados: dict) -> str:
+def _nota_metodologica(conn: sqlite3.Connection, tipo: str, funcoes: list[dict]) -> str:
+    """Uma frase por modo de preço presente nas funções da proposta."""
     if tipo != "continuo":
         return "Valores por diária conforme catálogo vigente; alimentação e transporte por profissional."
-    modo = escalas.modo_de(dados)
-    if modo == "semanal":
-        return ("Valor semanal pela soma das diárias dos dias ativos; "
-                "mensal estimado = semanal x 52/12.")
-    if modo == "diaria":
-        return (f"Diária fechada de R$ {format_brl(int(dados['valor_diaria_centavos']))} por "
-                f"profissional x {_dias_fmt(dados['plantoes_mes'])} dias/mês; "
-                "demais valores conforme linhas listadas.")
-    p = rcat.params_vigentes(conn)
-    # Rascunho legado (sem escala gravada) é 12x36 com os dias da escala padrão
-    dias = dados.get("plantoes_mes") or rcat.escala_padrao(conn)["dias_mes"]
-    nome = dados.get("escala_nome") or "12x36"
-    return (
-        f"Base estimada: piso mensal por função + adicional noturno de "
-        f"{format_percentual(p.pct_noturno)} sobre horas entre 22h-06h "
-        f"({_dias_fmt(dias)} dias trabalhados/mês, escala {nome}); "
-        f"encargos sociais de {format_percentual(p.pct_encargos)} sobre a mão de obra; "
-        f"margem administrativa de {format_percentual(p.pct_margem)}."
-    )
+    frases = []
+    piso = [f for f in funcoes if escalas.modo_de(f) == "piso_mensal"]
+    if piso:
+        p = rcat.params_vigentes(conn)
+        padrao = rcat.escala_padrao(conn)["dias_mes"]
+        bases = ", ".join(dict.fromkeys(
+            f"{_dias_fmt(f.get('plantoes_mes') or padrao)} dias trabalhados/mês, escala "
+            f"{f.get('escala_nome') or '12x36'}" for f in piso))
+        frases.append(
+            f"Base estimada: piso mensal por função + adicional noturno de "
+            f"{format_percentual(p.pct_noturno)} sobre horas entre 22h-06h ({bases}); "
+            f"encargos sociais de {format_percentual(p.pct_encargos)} sobre a mão de obra; "
+            f"margem administrativa de {format_percentual(p.pct_margem)}.")
+    for f in funcoes:
+        if escalas.modo_de(f) == "diaria":
+            frases.append(f"Diária fechada de R$ {format_brl(int(f['valor_diaria_centavos']))} por "
+                          f"profissional x {_dias_fmt(f['plantoes_mes'])} dias/mês; "
+                          "demais valores conforme linhas listadas.")
+    if any(escalas.modo_de(f) == "semanal" for f in funcoes):
+        frases.append("Valor semanal pela soma das diárias dos dias ativos; "
+                      "mensal estimado = semanal x 52/12.")
+    return " ".join(frases)
 
 
-def _escala_snapshot(dados: dict) -> dict:
-    modo = escalas.modo_de(dados)
+def _escala_snapshot(f: dict) -> dict:
+    """Escala de uma função congelada no snapshot (rótulos e valores prontos)."""
+    modo = escalas.modo_de(f)
     rotulos = dict(escalas.DIAS_SEMANA)
-    snap = {"nome": dados.get("escala_nome") or "12x36", "modo": modo,
+    ini, fim = f.get("hora_inicio_turno"), f.get("hora_fim_turno")
+    snap = {"funcao": f.get("nome", ""), "quantidade": f.get("quantidade", 0),
+            "nome": f.get("escala_nome") or "12x36", "modo": modo,
+            "turno": f"{ini} às {fim}" if modo != "semanal" and ini and fim else None,
+            "diaria_centavos": f.get("valor_diaria_centavos") if modo == "diaria" else None,
+            "dias_mes": _dias_fmt(f["plantoes_mes"]) if f.get("plantoes_mes") else None,
             "semanal_centavos": None, "mensal_centavos": None, "dias": []}
     if modo == "semanal":
-        semanal = escalas.valor_semanal(dados)
+        semanal = escalas.valor_semanal(f)
         snap.update({
             "semanal_centavos": semanal, "mensal_centavos": mensal_de_semanal(semanal),
-            # rótulo congelado junto: o snapshot não depende do código para exibir o dia
             "dias": [{"rotulo": rotulos[d["dia"]], "inicio": d["inicio"], "fim": d["fim"],
-                      "valor_centavos": d["valor_centavos"]} for d in dados.get("escala_semanal") or []],
+                      "valor_centavos": d["valor_centavos"]} for d in f.get("escala_semanal") or []],
         })
     return snap
 
@@ -74,7 +83,8 @@ def montar_snapshot(conn: sqlite3.Connection, pid: int) -> dict:
     par = lambda chave: rcat.parametro_vigente(conn, chave) or ""
 
     linhas = []
-    for l in rp.linhas_da_proposta(conn, pid):
+    linhas_db = rp.linhas_da_proposta(conn, pid)
+    for l in linhas_db:
         subtotal = l["valor_final_centavos"] * l["quantidade"]
         linhas.append({
             "descricao": l["descricao"], "categoria": l["categoria"],
@@ -87,8 +97,9 @@ def montar_snapshot(conn: sqlite3.Connection, pid: int) -> dict:
     total = rp.total_proposta(conn, pid)
     tipo = prop["tipo"]
     dados = rp.dados_de(prop)
+    funcoes = escalas.funcoes_da_proposta(dados, linhas_db) if tipo == "continuo" else []
     condicoes = [p for p in par(f"condicoes_{tipo}").split("\n") if p.strip()]
-    if tipo == "continuo" and escalas.modo_de(dados) in ("diaria", "semanal"):
+    if any(escalas.modo_de(f) in ("diaria", "semanal") for f in funcoes):
         condicoes += [p for p in par("condicoes_composicao_mensal").split("\n") if p.strip()]
     snapshot = {
         "numero": prop["numero"] or "RASCUNHO",
@@ -114,10 +125,10 @@ def montar_snapshot(conn: sqlite3.Connection, pid: int) -> dict:
         "total_fmt": format_brl(total),
         "condicoes": condicoes,
         "obs_finais": par(f"obs_finais_{tipo}"),
-        "nota_metodologica": _nota_metodologica(conn, tipo, dados),
+        "nota_metodologica": _nota_metodologica(conn, tipo, funcoes),
     }
     if tipo == "continuo":
-        snapshot["escala"] = _escala_snapshot(dados)
+        snapshot["escalas"] = [_escala_snapshot(f) for f in funcoes]
     return snapshot
 
 

@@ -353,3 +353,12 @@ def test_atualizar_linha_mao_de_obra_grava_descricao_e_modo(conn):
     l = rp.linhas_da_proposta(conn, pid)[0]
     assert (l["quantidade"], l["descricao"], l["modo_preco"], l["chave_funcao"]) == (
         2, "Portaria - 6x1", "piso_mensal", "k1")
+
+
+def test_listar_escalas_de_varias_funcoes(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.atualizar_dados(conn, pid, {"funcoes": [{"chave": "a", "escala_nome": "12x36"},
+                                               {"chave": "b", "escala_nome": "Personalizado"},
+                                               {"chave": "c", "escala_nome": "12x36"}]})
+    row = [r for r in rp.listar_propostas(conn) if r["id"] == pid][0]
+    assert sorted(row["escala_nome"].split(" + ")) == ["12x36", "Personalizado"]

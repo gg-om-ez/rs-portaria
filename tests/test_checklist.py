@@ -174,3 +174,15 @@ def test_nome_igual_ao_seed_nao_bloqueia(conn):
     pid = _completa_continuo(conn)
     assert _rotulos(conn, pid)[ROTULO_EMPRESA].ok
     assert rcat.empresa_com_dados_de_exemplo(conn) == []
+
+
+def test_checklist_por_cartao(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"funcoes": [
+        {"chave": "a", "funcao_id": None, "nome": "Portaria", "quantidade": 1, "modo_preco": "piso_mensal",
+         "hora_inicio_turno": "07:00", "hora_fim_turno": "19:00"},
+        {"chave": "b", "funcao_id": None, "nome": "Jardineiro", "quantidade": 1, "modo_preco": "semanal",
+         "escala_semanal": []}]})
+    itens = _rotulos(conn, pid)
+    assert itens["Portaria: Horários do turno definidos"].ok
+    assert not itens["Jardineiro: Pelo menos um dia ativo na escala"].ok

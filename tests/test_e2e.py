@@ -179,7 +179,7 @@ def test_fluxo_escala_personalizada_ate_pdf(client, tmp_path, monkeypatch):
     assert snap["total_centavos"] == 341250 and snap["total_fmt"] == "3.412,50"
     assert snap["dados"]["data_inicio"] == "2026-12-01"
     assert {l["categoria"] for l in snap["linhas"]} == {"mao_de_obra", "manual"}
-    # escalas por função no snapshot: conferidas na Task 6 (formato "escalas")
+    assert (snap["escalas"][0]["semanal_centavos"], snap["escalas"][0]["mensal_centavos"]) == (75000, 325000)
 
 
 def test_emitir_bloqueado_com_dados_de_exemplo(client, tmp_path):

@@ -37,8 +37,9 @@ def _resumo(conn, prop, dados: dict) -> dict:
         "cliente": cliente["razao_social"] if cliente else "",
         "data": dados.get("data_inicio") or dados.get("data_evento") or "",
         "duracao_meses": dados.get("duracao_meses") or "",
-        # rascunho anterior ao menu de escalas é 12x36
-        "escala_nome": (dados.get("escala_nome") or "12x36") if prop["tipo"] == "continuo" else "",
+        "escala_nome": " + ".join(dict.fromkeys(
+            f.get("escala_nome") or "12x36" for f in escalas.funcoes_da_proposta(dados, linhas)))
+            if prop["tipo"] == "continuo" else "",
         "profissionais": sum(l["quantidade"] for l in linhas if l["categoria"] == "mao_de_obra"),
         "total_centavos": rp.total_proposta(conn, prop["id"]),
     }

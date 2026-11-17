@@ -63,7 +63,10 @@ def listar_propostas(conn: sqlite3.Connection, termo: str = "", status: str = ""
     return conn.execute(
         "SELECT p.*, c.razao_social,"
         " COALESCE(SUM(l.valor_final_centavos * l.quantidade), 0) AS total_centavos,"
-        " json_extract(p.dados_json, '$.escala_nome') AS escala_nome"
+        # escalas distintas dos cartões de função; rascunho antigo usa a da proposta
+        " COALESCE((SELECT group_concat(nome, ' + ') FROM (SELECT DISTINCT"
+        "   json_extract(value, '$.escala_nome') AS nome FROM json_each(p.dados_json, '$.funcoes'))),"
+        "  json_extract(p.dados_json, '$.escala_nome')) AS escala_nome"
         " FROM propostas p"
         " LEFT JOIN clientes c ON c.id = p.cliente_id"
         " LEFT JOIN linhas_custo l ON l.proposta_id = p.id"

@@ -164,9 +164,10 @@ def test_snapshot_semanal(conn, proposta_pronta):
         "escala_id": "6", "escala_nome": "Personalizado", "modo_preco": "semanal",
         "escala_semanal": SEMANA})
     snap = emissao.montar_snapshot(conn, proposta_pronta)
-    assert snap["escala"]["nome"] == "Personalizado"
-    assert (snap["escala"]["semanal_centavos"], snap["escala"]["mensal_centavos"]) == (75000, 325000)
-    assert snap["escala"]["dias"][0] == {"rotulo": "Qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000}
+    e = snap["escalas"][0]
+    assert "escala" not in snap and e["nome"] == "Personalizado" and e["funcao"] == "Portaria noturna (12x36)"
+    assert (e["semanal_centavos"], e["mensal_centavos"]) == (75000, 325000)
+    assert e["dias"][0] == {"rotulo": "Qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000}
     assert any(c.startswith("Os valores mensais") for c in snap["condicoes"])
     assert "52/12" in snap["nota_metodologica"]
     json.dumps(snap)
@@ -174,7 +175,8 @@ def test_snapshot_semanal(conn, proposta_pronta):
 
 def test_snapshot_piso_sem_clausula_mensal(conn, proposta_pronta):
     snap = emissao.montar_snapshot(conn, proposta_pronta)
-    assert snap["escala"]["nome"] == "12x36" and snap["escala"]["modo"] == "piso_mensal"
+    assert snap["escalas"][0]["nome"] == "12x36" and snap["escalas"][0]["modo"] == "piso_mensal"
+    assert snap["escalas"][0]["turno"] == "18:00 às 06:00"
     assert not any(c.startswith("Os valores mensais") for c in snap["condicoes"])
     assert "15 dias trabalhados/mês, escala 12x36" in snap["nota_metodologica"]
 
@@ -198,3 +200,20 @@ def test_nota_mostra_percentual_fracionado(conn, proposta_pronta):
     rcat.definir_parametro(conn, "pct_encargos", "0.585", "2026-01-02")
     snap = emissao.montar_snapshot(conn, proposta_pronta)
     assert "encargos sociais de 58,5%" in snap["nota_metodologica"]
+
+
+
+def test_snapshot_duas_escalas(conn, proposta_pronta):
+    jard = [{"dia": "sab", "inicio": "08:00", "fim": "12:00", "valor_centavos": 15000}]
+    rp.atualizar_dados(conn, proposta_pronta, {"funcoes": [
+        {"chave": "a1", "funcao_id": None, "nome": "Portaria", "quantidade": 2, "escala_id": "1",
+         "escala_nome": "12x36", "modo_preco": "piso_mensal", "hora_inicio_turno": "07:00",
+         "hora_fim_turno": "19:00", "plantoes_mes": "15", "piso_centavos": 160000},
+        {"chave": "b2", "funcao_id": None, "nome": "Jardineiro", "quantidade": 1, "escala_id": "6",
+         "escala_nome": "Personalizado", "modo_preco": "semanal", "escala_semanal": jard}]})
+    snap = emissao.montar_snapshot(conn, proposta_pronta)
+    portaria, jardineiro = snap["escalas"]
+    assert (portaria["funcao"], portaria["quantidade"], portaria["turno"]) == ("Portaria", 2, "07:00 às 19:00")
+    assert (jardineiro["semanal_centavos"], jardineiro["mensal_centavos"]) == (15000, 65000)
+    assert any(c.startswith("Os valores mensais") for c in snap["condicoes"])
+    assert "piso mensal" in snap["nota_metodologica"] and "52/12" in snap["nota_metodologica"]

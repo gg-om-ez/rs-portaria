@@ -41,6 +41,7 @@ def test_pdf_smoke(snapshot):
 
 
 def test_html_escala_semanal(conn, snapshot):
+    snapshot.pop("escalas", None)  # snapshot da época de uma escala por proposta
     snapshot["escala"] = {
         "nome": "Personalizado", "modo": "semanal", "semanal_centavos": 75000, "mensal_centavos": 325000,
         "dias": [{"rotulo": "Qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000},
@@ -55,6 +56,7 @@ def test_html_escala_semanal(conn, snapshot):
 def test_snapshot_legado_renderiza(snapshot):
     # snapshot congelado antes das escalas: sem "escala" e linhas sem percentual_fmt
     snapshot.pop("escala", None)
+    snapshot.pop("escalas", None)
     for l in snapshot["linhas"]:
         l.pop("percentual_fmt", None)
     html = render_documento_html(snapshot)
@@ -72,3 +74,20 @@ def test_pdf_mostra_sentinelas(snapshot):
     html = render_documento_html(snapshot)
     assert "Duração:</strong> A informar" in html and "A combinar" in html
     assert "A informar meses" not in html
+
+
+def test_html_varias_escalas(snapshot):
+    snapshot.pop("escala", None)
+    snapshot["escalas"] = [
+        {"funcao": "Portaria diurna", "quantidade": 2, "nome": "12x36", "modo": "piso_mensal",
+         "turno": "07:00 às 19:00", "diaria_centavos": None, "dias_mes": "15", "dias": [],
+         "semanal_centavos": None, "mensal_centavos": None},
+        {"funcao": "Jardineiro", "quantidade": 1, "nome": "Personalizado", "modo": "semanal", "turno": None,
+         "diaria_centavos": None, "dias_mes": None,
+         "dias": [{"rotulo": "Sáb", "inicio": "08:00", "fim": "12:00", "valor_centavos": 15000}],
+         "semanal_centavos": 15000, "mensal_centavos": 65000}]
+    html = render_documento_html(snapshot)
+    for t in ["Portaria diurna", "2 profissionais", "turno das 07:00 às 19:00", "Jardineiro",
+              "Sáb", "08:00 às 12:00", "650,00"]:
+        assert t in html, t
+    assert "Turno de trabalho" not in html
