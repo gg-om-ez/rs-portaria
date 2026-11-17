@@ -187,6 +187,11 @@ def _erro_validacao_qtds(conn, tipo: str, form) -> str | None:
     return None
 
 
+def _escala_id_gravada(conn, dados: dict) -> str:
+    """Escala em vigor no rascunho; sem escala_id (legado) é a 12x36 padrão."""
+    return str(dados.get("escala_id") or rcat.escala_padrao(conn)["id"])
+
+
 def _ctx_servicos(conn, prop, escala, dados: dict, form=None) -> dict:
     ctx = _ctx_wizard(prop, "servicos")
     ctx["dados"] = dados
@@ -196,7 +201,7 @@ def _ctx_servicos(conn, prop, escala, dados: dict, form=None) -> dict:
     ctx["dias_semana"] = escalas.DIAS_SEMANA
     ctx["dias"] = escalas.dias_para_form(dados=dados, form=form)
     # Dias/mês: o gravado vale só para a mesma escala; ao trocar, sugere o da nova
-    mesma = escala is not None and str(dados.get("escala_id") or "") == str(escala["id"])
+    mesma = escala is not None and _escala_id_gravada(conn, dados) == str(escala["id"])
     ctx["dias_mes"] = (dados.get("plantoes_mes") if mesma or form is not None else None) \
         or (escala["dias_mes"] if escala is not None else "") or ""
     ctx["erro"] = None
@@ -251,9 +256,12 @@ async def salvar_servicos(request: Request, pid: int, conn=Depends(conn_dep)):
     params = rcat.params_vigentes(conn)
 
     linhas_mo = [l for l in rp.linhas_da_proposta(conn, pid) if l["categoria"] == "mao_de_obra"]
-    # Override feito sob outro modo de preço não vale no novo (seria preço de
-    # outro modelo, silencioso): troca de modo volta as linhas ao sugerido
-    if tipo == "continuo" and escalas.modo_de(dados) != escalas.modo_de(dados_anteriores):
+    # Override feito sob outra escala ou outro modo de preço não vale no novo
+    # (seria preço de outra cobertura, silencioso): a troca volta as linhas ao sugerido
+    trocou = tipo == "continuo" and (
+        _escala_id_gravada(conn, dados) != _escala_id_gravada(conn, dados_anteriores)
+        or escalas.modo_de(dados) != escalas.modo_de(dados_anteriores))
+    if trocou:
         for linha in linhas_mo:
             if linha["sobrescrito"]:
                 rp.restaurar_linha(conn, linha["id"])

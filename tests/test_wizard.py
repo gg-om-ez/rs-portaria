@@ -481,3 +481,28 @@ def test_servicos_erro_reexibe_valores_digitados(client, tmp_path):
     })
     assert r.status_code == 200
     assert 'value="25:00"' in r.text and 'value="210,50"' in r.text and 'value="13"' in r.text
+
+
+def test_rascunho_legado_reexibe_dias_gravados(client, tmp_path):
+    # rascunho anterior ao menu de escalas: sem escala_id, com plantoes_mes próprio
+    from app import repo_propostas as rp
+    pid = _nova(client)
+    conn = _conn(tmp_path)
+    rp.atualizar_dados(conn, pid, {"hora_inicio_turno": "18:00", "hora_fim_turno": "06:00",
+                                   "plantoes_mes": "16"})
+    r = client.get(f"/propostas/{pid}/servicos")
+    assert 'name="plantoes_mes" inputmode="decimal" value="16"' in r.text
+
+
+def test_trocar_escala_no_mesmo_modo_descarta_override(client, tmp_path):
+    pid = _nova(client)
+    diurna = _funcao_id(tmp_path, "Portaria diurna")
+    form = {"hora_inicio_turno": "07:00", "hora_fim_turno": "19:00", "plantoes_mes": "",
+            "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
+            f"qtd_{diurna}": "1"}
+    client.post(f"/propostas/{pid}/servicos", data=form)
+    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
+    client.post(f"/propostas/{pid}/linhas/{mo['id']}/valor", data={"valor": "3.000,00"})
+    client.post(f"/propostas/{pid}/servicos", data={**form, "escala_id": _escala_id(tmp_path, "6x1")})
+    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
+    assert mo["sobrescrito"] == 0 and mo["valor_final_centavos"] == 160000
