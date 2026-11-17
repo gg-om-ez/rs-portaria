@@ -451,3 +451,33 @@ def test_pagamento_a_combinar_evento(client, tmp_path):
     assert r.status_code == 303
     d = _dados(tmp_path, pid)
     assert (d["formas_pagamento"], d["data_limite_pagamento"]) == ("PIX", "A combinar")
+
+
+# ---- excluir rascunho ----
+def test_rota_excluir_confirma_e_redireciona(client, tmp_path):
+    pid = _nova(client)
+    r = client.get(f"/propostas/{pid}/excluir")
+    assert r.status_code == 200 and "Esta ação não pode ser desfeita." in r.text
+    r = client.post(f"/propostas/{pid}/excluir", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/propostas"
+    assert _conn(tmp_path).execute("SELECT COUNT(*) FROM propostas WHERE id=?", (pid,)).fetchone()[0] == 0
+
+
+def test_rota_excluir_emitida_nao_exclui(client, tmp_path):
+    pid = _nova(client)
+    conn = _conn(tmp_path)
+    conn.execute("UPDATE propostas SET status='emitida', numero='RS-2026-0009' WHERE id=?", (pid,))
+    conn.commit()
+    r = client.post(f"/propostas/{pid}/excluir", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("/emitida")
+    assert conn.execute("SELECT COUNT(*) FROM propostas WHERE id=?", (pid,)).fetchone()[0] == 1
+
+
+def test_etapas_tem_lixeira_so_em_rascunho(client, tmp_path):
+    pid = _nova(client)
+    html = client.get(f"/propostas/{pid}/cliente").text
+    assert 'aria-label="Excluir rascunho"' in html and "<dialog" in html
+    conn = _conn(tmp_path)
+    conn.execute("UPDATE propostas SET status='emitida', numero='RS-2026-0010' WHERE id=?", (pid,))
+    conn.commit()
+    assert 'aria-label="Excluir rascunho"' not in client.get(f"/propostas/{pid}/cliente").text

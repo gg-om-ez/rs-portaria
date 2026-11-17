@@ -2,9 +2,24 @@
                   "custos": "Custos", "pagamento": "Pagamento", "revisao": "Revisão"} %}
 <nav class="etapas cartao" aria-label="Etapas">
   <div class="etapas-cabecalho">
-    <span>{{ prop.numero or "Rascunho #" ~ prop.id }} - {{ "Serviço contínuo" if prop.tipo == "continuo" else "Evento único" }}</span>
+    <div class="etapas-titulo">
+      <span>{{ prop.numero or "Rascunho #" ~ prop.id }} - {{ "Serviço contínuo" if prop.tipo == "continuo" else "Evento único" }}</span>
+      {% if prop.status == "rascunho" %}
+      {# sem JS o link leva à página de confirmação; com JS abre o diálogo abaixo #}
+      <a href="/propostas/{{ prop.id }}/excluir" class="lixeira" aria-label="Excluir rascunho" title="Excluir rascunho"
+         onclick="event.preventDefault(); document.getElementById('dlg-excluir').showModal()">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+        </svg>
+      </a>
+      {% endif %}
+    </div>
     <strong>{{ resumo.cliente or "(sem cliente)" }}</strong>
   </div>
+  {% if prop.status == "rascunho" %}
+  <dialog id="dlg-excluir" class="dialogo">{% include "_confirmar_exclusao.html" %}</dialog>
+  {% endif %}
   <ol>
     {% for e in etapas %}{% set st = estados[e] %}
     <li><a href="/propostas/{{ prop.id }}/{{ e }}" data-estado="{{ st }}"{% if e == etapa %} aria-current="step"{% endif %}>

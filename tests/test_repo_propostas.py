@@ -362,3 +362,21 @@ def test_listar_escalas_de_varias_funcoes(conn):
                                                {"chave": "c", "escala_nome": "12x36"}]})
     row = [r for r in rp.listar_propostas(conn) if r["id"] == pid][0]
     assert sorted(row["escala_nome"].split(" + ")) == ["12x36", "Personalizado"]
+
+
+# ---- exclusão de rascunho ----
+def test_excluir_rascunho_apaga_proposta_e_linhas(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 160000)
+    rp.excluir_rascunho(conn, pid)
+    assert rp.obter_proposta(conn, pid) is None
+    assert conn.execute("SELECT COUNT(*) FROM linhas_custo WHERE proposta_id=?", (pid,)).fetchone()[0] == 0
+
+
+def test_excluir_emitida_e_recusado(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    conn.execute("UPDATE propostas SET status='emitida', numero='RS-2026-0001' WHERE id=?", (pid,))
+    conn.commit()
+    with pytest.raises(RuntimeError):
+        rp.excluir_rascunho(conn, pid)
+    assert rp.obter_proposta(conn, pid) is not None

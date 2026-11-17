@@ -292,6 +292,13 @@ def _recalcular_percentuais(conn: sqlite3.Connection, pid: int) -> None:
     conn.commit()
 
 
+def excluir_rascunho(conn: sqlite3.Connection, pid: int) -> None:
+    """Exclui um rascunho e suas linhas (ON DELETE CASCADE). Emitida é imutável."""
+    _exigir_rascunho(conn, pid)
+    conn.execute("DELETE FROM propostas WHERE id = ?", (pid,))
+    conn.commit()
+
+
 def duplicar_proposta(conn: sqlite3.Connection, pid: int) -> int:
     orig = obter_proposta(conn, pid)
     if orig is None:

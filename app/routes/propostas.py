@@ -85,6 +85,24 @@ def duplicar(pid: int, conn=Depends(conn_dep)):
     return RedirectResponse(f"/propostas/{novo}/cliente", status_code=303)
 
 
+@router.get("/propostas/{pid}/excluir")
+def confirmar_exclusao(request: Request, pid: int, conn=Depends(conn_dep)):
+    """Confirmação sem JS; com JS a lixeira abre um <dialog> na própria página."""
+    prop = _proposta_ou_404(conn, pid)
+    if prop["status"] != "rascunho":
+        return RedirectResponse(f"/propostas/{pid}/emitida", status_code=303)
+    return templates.TemplateResponse(request, "excluir_confirmar.html", {"prop": prop})
+
+
+@router.post("/propostas/{pid}/excluir")
+def excluir(pid: int, conn=Depends(conn_dep)):
+    prop = _proposta_ou_404(conn, pid)
+    if prop["status"] != "rascunho":
+        return RedirectResponse(f"/propostas/{pid}/emitida", status_code=303)
+    rp.excluir_rascunho(conn, pid)
+    return RedirectResponse("/propostas", status_code=303)
+
+
 @router.get("/propostas/{pid}/cliente")
 def etapa_cliente(request: Request, pid: int, q: str = "", conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
