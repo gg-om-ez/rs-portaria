@@ -15,6 +15,7 @@ class Campo:
     rotulo: str
     tipo: str  # pct | brl | int | texto | texto_longo
     ajuda: str = ""
+    teto_pct: int = 100  # pct: limite de plausibilidade; pega vírgula esquecida (585 em vez de 58,5)
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,7 @@ class Secao:
 SECOES: list[Secao] = [
     Secao("continuo-piso", "Serviço contínuo", "Cálculo por piso mensal",
           "Vale para as escalas 12x36, 6x1, 5x2 e 4x3. Encargos e margem também se aplicam a eventos.", (
-              Campo("pct_encargos", "Encargos sociais", "pct", "Sobre a soma da mão de obra"),
+              Campo("pct_encargos", "Encargos sociais", "pct", "Sobre a soma da mão de obra", teto_pct=150),
               Campo("pct_noturno", "Adicional noturno", "pct", "Sobre as horas entre 22h e 06h"),
               Campo("pct_margem", "Margem administrativa", "pct", "Sobre mão de obra, acessórios e encargos"),
               Campo("divisor_horas", "Divisor de horas mensal", "int", "CLT: 220"),
@@ -79,7 +80,10 @@ def converter(campo: Campo, texto: str) -> str:
     """Texto digitado -> valor gravado em `parametros`. ValueError com mensagem pt-BR."""
     limpo = texto.replace("\r\n", "\n").strip()
     if campo.tipo == "pct":
-        return str(parse_percentual_campo(limpo))
+        fracao = parse_percentual_campo(limpo)
+        if fracao * 100 > campo.teto_pct:
+            raise ValueError(f"Percentual acima do limite de {campo.teto_pct}% para este campo.")
+        return str(fracao)
     if campo.tipo == "brl":
         try:
             return str(parse_brl(limpo))

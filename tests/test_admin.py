@@ -171,3 +171,20 @@ def test_admin_escala_dias_invalidos(client, tmp_path):
 def test_admin_lista_escalas(client):
     r = client.get("/admin?secao=catalogo-escalas")
     assert "Escalas" in r.text and "Personalizado" in r.text and "Diária fechada" in r.text
+
+
+def test_lote_rejeita_percentual_acima_do_teto(client, tmp_path):
+    antes = _n_parametros(tmp_path)
+    r = client.post("/admin/parametros/lote", data={
+        "secao": "continuo-piso", "vigencia_inicio": "01/12/2026", "novo_pct_margem": "585"})
+    assert r.status_code == 200 and "acima do limite de 100%" in r.text
+    assert _n_parametros(tmp_path) == antes
+
+
+def test_lote_texto_apagado_limpa_o_valor(client, tmp_path):
+    r = client.post("/admin/parametros/lote", data={
+        "secao": "continuo-textos", "vigencia_inicio": "01/12/2026",
+        "novo_condicoes_continuo": _vig(tmp_path, "condicoes_continuo")[0], "novo_obs_finais_continuo": ""},
+        follow_redirects=False)
+    assert r.status_code == 303
+    assert tuple(_vig(tmp_path, "obs_finais_continuo")) == ("", "2026-12-01")

@@ -43,10 +43,10 @@ def _nota_metodologica(conn: sqlite3.Connection, tipo: str, dados: dict) -> str:
     nome = dados.get("escala_nome") or "12x36"
     return (
         f"Base estimada: piso mensal por função + adicional noturno de "
-        f"{int(p.pct_noturno * 100)}% sobre horas entre 22h-06h "
+        f"{format_percentual(p.pct_noturno)} sobre horas entre 22h-06h "
         f"({_dias_fmt(dias)} dias trabalhados/mês, escala {nome}); "
-        f"encargos sociais de {int(p.pct_encargos * 100)}% sobre a mão de obra; "
-        f"margem administrativa de {int(p.pct_margem * 100)}%."
+        f"encargos sociais de {format_percentual(p.pct_encargos)} sobre a mão de obra; "
+        f"margem administrativa de {format_percentual(p.pct_margem)}."
     )
 
 

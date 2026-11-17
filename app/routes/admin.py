@@ -54,15 +54,21 @@ async def salvar_lote(request: Request, conn=Depends(conn_dep)):
         vigencia = None
     erros, valores = {}, {}
     for c in sec.campos:
-        if not digitados[c.chave].strip():
-            continue  # em branco: não altera
+        texto = c.tipo in ("texto", "texto_longo")
+        # numérico em branco: não altera. Texto vem preenchido, então vazio enviado
+        # é limpar; campo que nem veio no formulário não muda
+        if not digitados[c.chave].strip() and (not texto or f"novo_{c.chave}" not in form):
+            continue
         try:
             valor = converter(c, digitados[c.chave])
         except ValueError as exc:
             erros[c.chave] = str(exc)
             continue
         # igual ao que já vale na data escolhida: não cria vigência repetida
-        if valor != (rcat.parametro_vigente(conn, c.chave, em=vigencia) or ""):
+        vigente = rcat.parametro_vigente(conn, c.chave, em=vigencia) or ""
+        if texto:
+            vigente = vigente.replace("\r\n", "\n").strip()  # legado gravado com CRLF
+        if valor != vigente:
             valores[c.chave] = valor
     erro = None
     if vigencia is None:

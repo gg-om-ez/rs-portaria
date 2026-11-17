@@ -190,3 +190,9 @@ def test_nota_diaria(conn, proposta_pronta):
     snap = emissao.montar_snapshot(conn, proposta_pronta)
     assert snap["nota_metodologica"].startswith("Diária fechada de R$ 200,00 por profissional x 13 dias/mês")
     assert any(c.startswith("Os valores mensais") for c in snap["condicoes"])
+
+
+def test_nota_mostra_percentual_fracionado(conn, proposta_pronta):
+    rcat.definir_parametro(conn, "pct_encargos", "0.585", "2026-01-02")
+    snap = emissao.montar_snapshot(conn, proposta_pronta)
+    assert "encargos sociais de 58,5%" in snap["nota_metodologica"]
