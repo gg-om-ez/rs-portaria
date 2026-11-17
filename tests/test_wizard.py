@@ -529,3 +529,22 @@ def test_resumo_lateral_mostra_total(client, tmp_path):
     client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "Operacional", "valor": "1.000,00"})
     r = client.get(f"/propostas/{pid}/local")
     assert "Resumo da proposta" in r.text and "1.000,00" in r.text and "Cliente Exemplo Ltda" in r.text
+
+
+# ---- lista de propostas ----
+def test_lista_mostra_colunas_e_aviso(client, tmp_path):
+    pid = _com_cliente(client)
+    conn = _conn(tmp_path)
+    conn.execute("UPDATE propostas SET status = 'emitida', numero = 'RS-2026-0001', pdf_arquivado = 0"
+                 " WHERE id = ?", (pid,))
+    conn.commit()
+    r = client.get("/propostas")
+    for t in ["Total (R$)", "Escala", "Criada em", "12x36", "RS-2026-0001"]:
+        assert t in r.text, t
+    assert r.text.count("Regravar cópias não arquivadas") == 1
+
+
+def test_lista_filtros_na_query(client):
+    _com_cliente(client)
+    r = client.get("/propostas?status=emitida")
+    assert "Nada encontrado." in r.text and '<option value="emitida" selected' in r.text

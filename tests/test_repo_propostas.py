@@ -268,3 +268,41 @@ def test_trocar_para_semanal_remove_e_voltar_para_piso_recria(conn):
     rp.recalcular_derivadas(conn, pid, PARAMS)
     descricoes = {l["descricao"] for l in rp.linhas_da_proposta(conn, pid)}
     assert {"Alimentação", "Transporte", "Encargos sociais", "Margem administrativa"} <= descricoes
+
+
+# ---- lista com total, escala e filtros ----
+from app import repo_clientes as rc
+
+
+def _duas_propostas(conn):
+    c1 = rc.criar_cliente(conn, "Cliente Exemplo Ltda", "11.222.333/0001-81", "Av. Exemplo, 1000")
+    c2 = rc.criar_cliente(conn, "Empresa XYZ", "11.444.777/0001-61", "Rua X, 1")
+    a = rp.criar_proposta(conn, "continuo")
+    rp.definir_cliente(conn, a, c1)
+    rp.atualizar_dados(conn, a, {"escala_nome": "5x2"})
+    rp.inserir_linha(conn, a, "Portaria", "mao_de_obra", 2, 100000)
+    b = rp.criar_proposta(conn, "evento")
+    rp.definir_cliente(conn, b, c2)
+    conn.execute("UPDATE propostas SET status = 'emitida', pdf_arquivado = 0 WHERE id = ?", (b,))
+    conn.commit()
+    return a, b
+
+
+def test_listar_traz_total_e_escala(conn):
+    a, b = _duas_propostas(conn)
+    rows = {r["id"]: r for r in rp.listar_propostas(conn)}
+    assert rows[a]["total_centavos"] == 200000 and rows[a]["escala_nome"] == "5x2"
+    assert rows[b]["total_centavos"] == 0 and rows[b]["escala_nome"] is None
+
+
+def test_listar_filtra_status_tipo_e_busca_juntos(conn):
+    a, b = _duas_propostas(conn)
+    assert [r["id"] for r in rp.listar_propostas(conn, "exemplo", status="rascunho", tipo="continuo")] == [a]
+    assert rp.listar_propostas(conn, "exemplo", status="emitida") == []
+    assert [r["id"] for r in rp.listar_propostas(conn, tipo="evento")] == [b]
+    assert len(rp.listar_propostas(conn, status="invalido", tipo="xyz")) == 2
+
+
+def test_contar_nao_arquivadas(conn):
+    _duas_propostas(conn)
+    assert rp.contar_nao_arquivadas(conn) == 1

@@ -56,11 +56,13 @@ def home(request: Request, conn=Depends(conn_dep)):
 
 
 @router.get("/propostas")
-def lista(request: Request, q: str = "", conn=Depends(conn_dep)):
-    return templates.TemplateResponse(
-        request, "propostas_lista.html",
-        {"propostas": rp.listar_propostas(conn, q), "q": q},
-    )
+def lista(request: Request, q: str = "", status: str = "", tipo: str = "",
+          conn=Depends(conn_dep)):
+    return templates.TemplateResponse(request, "propostas_lista.html", {
+        "propostas": rp.listar_propostas(conn, q, status, tipo),
+        "q": q, "status": status, "tipo": tipo,
+        "nao_arquivadas": rp.contar_nao_arquivadas(conn),
+    })
 
 
 @router.post("/propostas/nova")

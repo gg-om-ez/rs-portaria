@@ -49,16 +49,36 @@ def definir_cliente(conn: sqlite3.Connection, pid: int, cliente_id: int) -> None
     conn.commit()
 
 
-def listar_propostas(conn: sqlite3.Connection, termo: str = "") -> list[sqlite3.Row]:
+_STATUS_FILTRO = {"", "rascunho", "emitida"}
+_TIPOS_FILTRO = {"", "continuo", "evento"}
+
+
+def listar_propostas(conn: sqlite3.Connection, termo: str = "", status: str = "",
+                     tipo: str = "") -> list[sqlite3.Row]:
+    """Propostas com total (soma das linhas) e nome da escala; filtro fora do
+    conjunto conhecido é ignorado."""
+    status = status if status in _STATUS_FILTRO else ""
+    tipo = tipo if tipo in _TIPOS_FILTRO else ""
     like = f"%{termo.strip()}%"
     return conn.execute(
-        "SELECT p.*, c.razao_social FROM propostas p"
+        "SELECT p.*, c.razao_social,"
+        " COALESCE(SUM(l.valor_final_centavos * l.quantidade), 0) AS total_centavos,"
+        " json_extract(p.dados_json, '$.escala_nome') AS escala_nome"
+        " FROM propostas p"
         " LEFT JOIN clientes c ON c.id = p.cliente_id"
-        " WHERE c.razao_social LIKE ? COLLATE NOCASE OR IFNULL(p.numero, '') LIKE ?"
-        "    OR ? = '%%'"
-        " ORDER BY p.id DESC",
-        (like, like, like),
+        " LEFT JOIN linhas_custo l ON l.proposta_id = p.id"
+        " WHERE (c.razao_social LIKE ? COLLATE NOCASE OR IFNULL(p.numero, '') LIKE ?"
+        "        OR ? = '%%')"
+        "   AND (? = '' OR p.status = ?) AND (? = '' OR p.tipo = ?)"
+        " GROUP BY p.id ORDER BY p.id DESC",
+        (like, like, like, status, status, tipo, tipo),
     ).fetchall()
+
+
+def contar_nao_arquivadas(conn: sqlite3.Connection) -> int:
+    return conn.execute(
+        "SELECT COUNT(*) FROM propostas WHERE status = 'emitida' AND pdf_arquivado = 0"
+    ).fetchone()[0]
 
 
 def inserir_linha(

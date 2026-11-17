@@ -93,3 +93,18 @@ iframe.preview { width: 100%; height: 70vh; border: 1px solid var(--borda); bord
 .param[data-alterado] input, .param[data-alterado] textarea { outline: 2px solid var(--marca-escura); outline-offset: 1px; }
 .param-erro input, .param-erro textarea { border-color: var(--erro); }
 .param-historico summary { cursor: pointer; font-size: .85rem; color: var(--texto-suave); }
+
+/* Lista de propostas */
+.lista-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.acoes-nova { display: flex; flex-wrap: wrap; gap: 8px; } .acoes-nova button { width: auto; margin: 0; }
+.filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 12px 0; }
+.filtros label { margin: 0; flex: 1 1 160px; } .filtros .filtro-busca { flex: 3 1 280px; }
+.filtros button { width: auto; margin: 0; }
+.aviso { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 10px 14px; border: 1px dashed var(--erro); border-radius: 10px; background: var(--superficie); margin-bottom: 12px; }
+.aviso button { width: auto; margin: 0; }
+.tabela-rolagem { overflow-x: auto; }
+.tabela-lista { min-width: 860px; }
+.acoes-linha { display: flex; gap: 12px; align-items: center; justify-content: flex-end; white-space: nowrap; }
+.acoes-linha .mini { margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
