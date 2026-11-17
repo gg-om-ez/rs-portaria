@@ -62,13 +62,17 @@ novas funcionalidades.
 
 ### Curto prazo
 - [ ] Reforço da postura de segurança da aplicação e do banco de dados
-- [ ] Colocar a ferramenta em uso real no dia a dia (acesso remoto seguro)
-- [ ] Refinamento visual das propostas em PDF
+- [ ] Refinamento da ferramenta em uso interno, no computador
+- [ ] Reorganização do painel de configurações por modalidade de serviço
+- [ ] Histórico de reajustes também para os valores-base das funções
+- [ ] Nova identidade visual aplicada à interface e às propostas em PDF
 
 ### Médio prazo
 - [ ] Hospedagem sempre disponível (fora do notebook)
+
+### Suspenso (retomada após a fase de refinamento)
+- [ ] Uso pelo celular, com acesso remoto seguro
 - [ ] Melhorias de usabilidade no fluxo mobile
-- [ ] Reorganização do painel de configurações por modalidade de serviço
 
 ### Futuro
 - [ ] Ideias em aberto conforme o uso amadurecer
