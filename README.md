@@ -64,6 +64,7 @@ novas funcionalidades.
 - [ ] Reforço da postura de segurança da aplicação e do banco de dados
 - [ ] Refinamento da ferramenta em uso interno, no computador
 - [ ] Reorganização do painel de configurações por modalidade de serviço
+- [ ] Histórico de reajustes também para os valores-base das funções
 - [ ] Nova identidade visual aplicada à interface e às propostas em PDF
 
 ### Médio prazo
