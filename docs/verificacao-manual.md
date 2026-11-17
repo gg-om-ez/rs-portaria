@@ -4,11 +4,15 @@ Verificação de aceitação da v1/v1.1 do gerador de propostas, executada pelo
 usuário junto com o sócio (no celular dele, via Tailscale). Marque cada caixa
 ao confirmar o resultado esperado. Divergências vão na seção final.
 
+> **Fase atual (desde 2026-11-17): execução no desktop.** O desenvolvimento
+> mobile está suspenso. Os passos marcados *(suspenso)* ficam para a retomada;
+> o restante roda no navegador do computador, em `http://127.0.0.1:8420`.
+
 ## 0. Pré-requisitos (uma única vez)
 
-- [ ] Tailscale ativo no notebook: `sudo systemctl enable --now tailscaled && sudo tailscale up`;
+- [ ] *(suspenso)* Tailscale ativo no notebook: `sudo systemctl enable --now tailscaled && sudo tailscale up`;
       anote o IP com `tailscale ip -4`.
-- [ ] Tailscale no celular do sócio: app da Play Store, login na **mesma conta**, toggle ativo.
+- [ ] *(suspenso)* Tailscale no celular do sócio: app da Play Store, login na **mesma conta**, toggle ativo.
 - [ ] `.env` definitivo (não use os valores de exemplo):
   - `APP_PIN`: PIN forte de 6 dígitos, combinado com o sócio por voz (não por escrito no WhatsApp).
   - `APP_SECRET`: gere com `openssl rand -hex 32`.
@@ -16,7 +20,7 @@ ao confirmar o resultado esperado. Divergências vão na seção final.
   - `RSP_ARQUIVO_HOST`: caminho local da pasta `03-Propostas-Enviadas`.
 - [ ] Suba o serviço: `docker compose up -d`.
 
-## 1. Acesso do celular
+## 1. Acesso do celular *(suspenso)*
 
 - [ ] No celular do sócio, abrir `http://<ip-tailscale>:8420` → tela de login aparece.
 - [ ] PIN errado é recusado; PIN correto entra na home.
@@ -24,7 +28,7 @@ ao confirmar o resultado esperado. Divergências vão na seção final.
 
 ## 2. Fluxo contínuo completo - números de referência
 
-Reproduz a proposta de referência (serviço contínuo) no app, de ponta a ponta, pelo celular.
+Reproduz a proposta de referência (serviço contínuo) no app, de ponta a ponta, no navegador.
 
 1. [ ] Home → Nova proposta → **Serviço contínuo**.
 2. [ ] Cliente: criar "Cliente Exemplo Ltda", CNPJ `11.222.333/0001-81`,
@@ -41,7 +45,7 @@ Reproduz a proposta de referência (serviço contínuo) no app, de ponta a ponta
    - **Adicionar linha de custo**: descrição "Operacional", valor **208,00**.
 6. [ ] **Total = R$ 12.000,00** (igual ao documento de referência).
 7. [ ] Pagamento: formas + vencimento. Revisão: checklist todo verde → **Emitir**.
-8. [ ] Número no formato `RS-2026-NNNN`; PDF baixa no celular; cópia aparece em
+8. [ ] Número no formato `RS-2026-NNNN`; PDF baixa; cópia aparece em
        `03-Propostas-Enviadas/` no notebook (sincronizada via Syncthing).
 
 ## 3. Fluxo evento completo - números reais do orçamento de evento
@@ -83,7 +87,7 @@ Caso de referência (Personalizado): Qua a Sex 09:00-18:15 a R$ 200,00/dia e
 Sáb 08:30-14:00 a R$ 150,00/dia, 1 profissional.
 
 - [ ] Proposta contínua, data de início digitada como `01122026` no desktop →
-      o campo vira `01/12/2026` enquanto digita. No celular abre o seletor nativo.
+      o campo vira `01/12/2026` enquanto digita. *(suspenso)* No celular abre o seletor nativo.
 - [ ] Serviços: escolher a escala **Personalizado** → os campos de turno somem e
       aparecem os 7 dias com checkbox, início, fim e valor.
 - [ ] Marcar Qua, Qui, Sex e Sáb com os valores acima e 1 profissional →
