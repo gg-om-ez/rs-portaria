@@ -233,3 +233,48 @@ def test_rascunho_legado_reenvia_igual(client, tmp_path):
     mo = _mo(conn, pid)
     assert len(mo) == 1 and mo[0]["id"] == lid
     assert (mo[0]["sobrescrito"], mo[0]["valor_final_centavos"], mo[0]["chave_funcao"]) == (1, 70000, f"l{lid}")
+
+
+# ---- correções da revisão final ----
+def test_trocar_funcao_no_cartao_descarta_override(client, tmp_path):
+    pid, conn = _nova(client), _conn(tmp_path)
+    _post(client, pid, form_servicos(conn, [{"funcao": "Portaria diurna"}]))
+    client.post(f"/propostas/{pid}/linhas/{_mo(conn, pid)[0]['id']}/valor", data={"valor": "1.900,00"})
+    _post(client, pid, form_servicos(conn, [{"funcao": "Auxiliar"}]))
+    mo = _mo(conn, pid)[0]
+    aux = conn.execute("SELECT id FROM funcoes WHERE nome LIKE 'Auxiliar%'").fetchone()[0]
+    assert (mo["funcao_id"], mo["sobrescrito"], mo["valor_final_centavos"]) == (aux, 0, 151800)
+
+
+def test_funcao_inativa_continua_selecionada(client, tmp_path):
+    pid, conn = _nova(client), _conn(tmp_path)
+    _post(client, pid, form_servicos(conn, [{"funcao": "Auxiliar"}]))
+    aux = conn.execute("SELECT id FROM funcoes WHERE nome LIKE 'Auxiliar%'").fetchone()[0]
+    conn.execute("UPDATE funcoes SET ativa = 0 WHERE id = ?", (aux,))
+    conn.commit()
+    html = client.get(f"/propostas/{pid}/servicos").text
+    assert f'<option value="{aux}" selected' in html
+
+
+def test_chave_maliciosa_nao_vira_html(client, tmp_path):
+    pid = _nova(client)
+    ruim = 'x" onfocus=alert(1) autofocus x="'
+    r = client.get(f"/propostas/{pid}/servicos/funcao", params={"chave": ruim, f"f_{ruim}_qtd": "1"})
+    assert r.status_code == 200 and "onfocus=alert(1)" not in r.text
+
+
+def test_post_com_chave_invalida_e_recusado(client, tmp_path):
+    pid, conn = _nova(client), _conn(tmp_path)
+    form = form_servicos(conn, [{"chave": 'x"y'}])
+    assert _post(client, pid, form).status_code == 422
+    assert _mo(conn, pid) == []
+
+
+def test_trocar_escala_sugere_dias_da_nova(client, tmp_path):
+    pid, conn = _nova(client), _conn(tmp_path)
+    form = form_servicos(conn, [{"escala": "6x1", "plantoes_mes": "15"}])
+    form.pop("funcao"), form.pop("trajes"), form.pop("observacoes")
+    r = client.get(f"/propostas/{pid}/servicos/funcao", params={"chave": "c0", "troca_escala": "1", **form})
+    assert 'name="f_c0_plantoes_mes" inputmode="decimal" value="26"' in r.text
+    r = client.get(f"/propostas/{pid}/servicos/funcao", params={"chave": "c0", **form})
+    assert 'name="f_c0_plantoes_mes" inputmode="decimal" value="15"' in r.text  # sem troca, vale o digitado

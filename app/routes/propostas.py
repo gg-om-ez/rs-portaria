@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 import sqlite3
 from pathlib import Path
@@ -206,6 +207,11 @@ def _campos_servicos(tipo: str) -> list[str]:
     return ["trajes", "comunicacao", "observacoes"]
 
 
+# Chave de cartão: token hex ou "l<id>" (legado). Só alfanumérico, porque vai em
+# nomes de campo e na URL do hx-get
+_CHAVE_VALIDA = re.compile(r"[A-Za-z0-9]{1,16}")
+
+
 def _txt(form, nome: str) -> str:
     return str(form.get(nome) or "").strip()
 
@@ -238,7 +244,10 @@ def _cartao(conn, chave: str, catalogo: list, cfg: dict | None = None, form=None
                         ("hora_inicio_turno", "hora_fim_turno", "valor_diaria")},
             "dias": escalas.dias_para_form(form=form, prefixo=p),
             # dias/mês digitado vale; trocar de escala sem digitar sugere o da nova
-            "dias_mes": _txt(form, p + "plantoes_mes") if p + "plantoes_mes" in form
+            # troca de escala (select manda troca_escala) sugere os dias da nova;
+            # fora disso vale o digitado
+            "dias_mes": (escala["dias_mes"] or "") if form.get("troca_escala")
+                        else _txt(form, p + "plantoes_mes") if p + "plantoes_mes" in form
                         else (escala["dias_mes"] or ""),
         }
     else:
@@ -259,7 +268,14 @@ def _cartao(conn, chave: str, catalogo: list, cfg: dict | None = None, form=None
             "dias": escalas.dias_para_form(dados=cfg),
             "dias_mes": (cfg.get("plantoes_mes") if mesma else None) or escala["dias_mes"] or "",
         }
-    cartao.update({"chave": chave, "p": p, "escala": escala, "erro": erro})
+    # função do cartão fora do catálogo ativo (desativada depois): continua no select
+    extra = None
+    if cartao["funcao_sel"] not in {str(f["id"]) for f in catalogo} | {"personalizada"}:
+        try:
+            extra = rcat.obter_funcao(conn, int(cartao["funcao_sel"]))
+        except ValueError:
+            extra = None
+    cartao.update({"chave": chave, "p": p, "escala": escala, "erro": erro, "funcao_extra": extra})
     return cartao
 
 
@@ -312,6 +328,8 @@ def cartao_funcao(request: Request, pid: int, chave: str = "", conn=Depends(conn
     prop = _proposta_ou_404(conn, pid)
     catalogo = rcat.listar_funcoes(conn, tipo="continuo")
     q = request.query_params
+    if chave and not _CHAVE_VALIDA.fullmatch(chave):
+        chave = ""  # chave estranha: cartão novo, nada do texto volta para a página
     if chave and any(k.startswith(f"f_{chave}_") for k in q.keys()):
         cartao = _cartao(conn, chave, catalogo, form=q)
     else:
@@ -326,6 +344,8 @@ def _ler_cartoes(conn, form, catalogo: list) -> tuple[list[dict], list[dict], st
     cada cartão para re-exibir e a primeira mensagem de erro."""
     cfgs, cartoes, erro = [], [], None
     for chave in form.getlist("funcao"):
+        if not _CHAVE_VALIDA.fullmatch(chave):
+            raise HTTPException(422, "Cartão de função inválido")
         p = f"f_{chave}_"
         sel = _txt(form, p + "funcao")
         funcao = None
@@ -387,13 +407,16 @@ def _salvar_linhas_continuo(conn, pid: int, cfgs: list[dict], anteriores: dict, 
                              modo_preco=cfg["modo_preco"])
             continue
         ant = anteriores.get(cfg["chave"])
+        # override só vale para a mesma função, escala e modo do cartão
         mudou = (ant is None or str(ant.get("escala_id") or padrao) != cfg["escala_id"]
-                 or escalas.modo_de(ant) != cfg["modo_preco"])
+                 or escalas.modo_de(ant) != cfg["modo_preco"]
+                 or ant.get("funcao_id") != cfg["funcao_id"]
+                 or (cfg["funcao_id"] is None and ant.get("nome") != cfg["nome"]))
         if mudou and linha["sobrescrito"]:
             rp.restaurar_linha(conn, linha["id"])
         rp.atualizar_linha_mao_de_obra(conn, linha["id"], cfg["quantidade"], sugerido,
                                        descricao=descricao, modo_preco=cfg["modo_preco"],
-                                       chave_funcao=cfg["chave"])
+                                       chave_funcao=cfg["chave"], funcao_id=cfg["funcao_id"])
     vistas = {cfg["chave"] for cfg in cfgs}
     for chave, linha in por_chave.items():
         if chave not in vistas:

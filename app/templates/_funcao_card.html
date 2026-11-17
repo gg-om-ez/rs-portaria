@@ -1,11 +1,15 @@
 {# Cartão de uma função na etapa Serviços (contínuo). Trocar função ou escala
    refaz só este cartão: hx-get com os campos dele, troca outerHTML #}
 {% set p = c.p %}
-{% set refazer = 'hx-get="/propostas/' ~ prop.id ~ '/servicos/funcao?chave=' ~ c.chave ~ '" hx-include="closest .funcao-card" hx-target="closest .funcao-card" hx-swap="outerHTML"' %}
 <section class="cartao funcao-card" data-chave="{{ c.chave }}">
   <input type="hidden" name="funcao" value="{{ c.chave }}">
   <div class="funcao-topo">
-    <label>Função <select name="{{ p }}funcao" {{ refazer | safe }}>
+    <label>Função <select name="{{ p }}funcao"
+        hx-get="/propostas/{{ prop.id }}/servicos/funcao?chave={{ c.chave | urlencode }}"
+        hx-include="closest .funcao-card" hx-target="closest .funcao-card" hx-swap="outerHTML">
+      {% if c.funcao_extra %}
+      <option value="{{ c.funcao_extra.id }}" selected>{{ c.funcao_extra.nome }} (inativa)</option>
+      {% endif %}
       {% for f in funcoes %}
       <option value="{{ f.id }}"{{ " selected" if c.funcao_sel == f.id | string }}>{{ f.nome }}</option>
       {% endfor %}
@@ -15,7 +19,10 @@
     <label>Nome da função <input name="{{ p }}nome" value="{{ c.nome }}" placeholder="Ex.: Jardineiro"></label>
     {% endif %}
     <label class="funcao-qtd">Profissionais <input name="{{ p }}qtd" inputmode="numeric" value="{{ c.qtd }}" placeholder="1"></label>
-    <label>Escala <select name="{{ p }}escala_id" {{ refazer | safe }}>
+    <label>Escala <select name="{{ p }}escala_id"
+        hx-get="/propostas/{{ prop.id }}/servicos/funcao?chave={{ c.chave | urlencode }}"
+        hx-vals='{"troca_escala": "1"}'
+        hx-include="closest .funcao-card" hx-target="closest .funcao-card" hx-swap="outerHTML">
       {% for e in escalas %}
       <option value="{{ e.id }}"{{ " selected" if e.id == c.escala.id }}>{{ e.nome }}</option>
       {% endfor %}

@@ -147,6 +147,7 @@ def restaurar_linha(conn: sqlite3.Connection, linha_id: int) -> None:
 def atualizar_linha_mao_de_obra(
     conn: sqlite3.Connection, linha_id: int, quantidade: int, valor_sugerido_centavos: int,
     descricao: str | None = None, modo_preco: str | None = None, chave_funcao: str | None = None,
+    funcao_id: int | None | object = ...,
 ) -> None:
     """Atualiza uma linha de mão de obra existente ao re-submeter a etapa Serviços,
     preservando o valor final quando sobrescrito. Descrição, modo e chave só mudam
@@ -158,6 +159,8 @@ def atualizar_linha_mao_de_obra(
         (linha_id,),
     ).fetchone()
     final = row["valor_final_centavos"] if row["sobrescrito"] else valor_sugerido_centavos
+    if funcao_id is not ...:  # trocar a função do cartão também troca a da linha
+        conn.execute("UPDATE linhas_custo SET funcao_id = ? WHERE id = ?", (funcao_id, linha_id))
     conn.execute(
         "UPDATE linhas_custo SET quantidade = ?, valor_sugerido_centavos = ?,"
         " valor_final_centavos = ?, descricao = ?, modo_preco = ?, chave_funcao = ? WHERE id = ?",
