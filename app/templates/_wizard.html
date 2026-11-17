@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block conteudo %}
+{# Desktop: etapas | conteúdo da etapa | lateral (resumo, ou o que a etapa definir) #}
+<div class="wizard">
+  {% include "_etapas.html" %}
+  <div class="wizard-conteudo">{% block etapa_conteudo %}{% endblock %}</div>
+  <aside class="wizard-lateral" aria-label="Lateral">{% block etapa_lateral %}{% include "_resumo.html" %}{% endblock %}</aside>
+</div>
+{% endblock %}

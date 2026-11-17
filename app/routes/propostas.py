@@ -28,8 +28,25 @@ def _proposta_ou_404(conn: sqlite3.Connection, pid: int) -> sqlite3.Row:
 ETAPAS = ["cliente", "local", "servicos", "custos", "pagamento", "revisao"]
 
 
-def _ctx_wizard(prop, etapa: str) -> dict:
-    return {"prop": prop, "dados": rp.dados_de(prop), "etapas": ETAPAS, "etapa": etapa}
+def _resumo(conn, prop, dados: dict) -> dict:
+    cliente = rcli.obter_cliente(conn, prop["cliente_id"]) if prop["cliente_id"] else None
+    linhas = rp.linhas_da_proposta(conn, prop["id"])
+    return {
+        "cliente": cliente["razao_social"] if cliente else "",
+        "data": dados.get("data_inicio") or dados.get("data_evento") or "",
+        "duracao_meses": dados.get("duracao_meses") or "",
+        # rascunho anterior ao menu de escalas é 12x36
+        "escala_nome": (dados.get("escala_nome") or "12x36") if prop["tipo"] == "continuo" else "",
+        "profissionais": sum(l["quantidade"] for l in linhas if l["categoria"] == "mao_de_obra"),
+        "total_centavos": rp.total_proposta(conn, prop["id"]),
+    }
+
+
+def _ctx_wizard(conn, prop, etapa: str) -> dict:
+    dados = rp.dados_de(prop)
+    return {"prop": prop, "dados": dados, "etapas": ETAPAS, "etapa": etapa,
+            "estados": checklist.estado_etapas(checklist.avaliar(conn, prop["id"]), ETAPAS, etapa),
+            "resumo": _resumo(conn, prop, dados)}
 
 
 @router.get("/")
@@ -64,7 +81,7 @@ def duplicar(pid: int, conn=Depends(conn_dep)):
 @router.get("/propostas/{pid}/cliente")
 def etapa_cliente(request: Request, pid: int, q: str = "", conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
-    ctx = _ctx_wizard(prop, "cliente")
+    ctx = _ctx_wizard(conn, prop, "cliente")
     ctx.update({"clientes": rcli.buscar_clientes(conn, q), "q": q, "erro": None})
     return templates.TemplateResponse(request, "etapa_cliente.html", ctx)
 
@@ -86,7 +103,7 @@ def criar_cliente_e_vincular(
     try:
         cid = rcli.criar_cliente(conn, razao_social, cnpj, endereco, email, telefone)
     except ValueError as exc:
-        ctx = _ctx_wizard(prop, "cliente")
+        ctx = _ctx_wizard(conn, prop, "cliente")
         ctx.update({"clientes": rcli.buscar_clientes(conn), "q": "", "erro": str(exc)})
         return templates.TemplateResponse(request, "etapa_cliente.html", ctx)
     rp.definir_cliente(conn, pid, cid)
@@ -96,7 +113,7 @@ def criar_cliente_e_vincular(
 @router.get("/propostas/{pid}/local")
 def etapa_local(request: Request, pid: int, conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
-    ctx = _ctx_wizard(prop, "local")
+    ctx = _ctx_wizard(conn, prop, "local")
     ctx["cliente"] = rcli.obter_cliente(conn, prop["cliente_id"]) if prop["cliente_id"] else None
     ctx["erro"] = None
     return templates.TemplateResponse(request, "etapa_local.html", ctx)
@@ -143,7 +160,7 @@ async def salvar_local(request: Request, pid: int, conn=Depends(conn_dep)):
     dados = {c: str(form.get(c, "")).strip() for c in campos}
     erro = _erro_validacao_local(prop["tipo"], dados)
     if erro:
-        ctx = _ctx_wizard(prop, "local")
+        ctx = _ctx_wizard(conn, prop, "local")
         ctx["dados"] = {**ctx["dados"], **dados}
         ctx["cliente"] = rcli.obter_cliente(conn, prop["cliente_id"]) if prop["cliente_id"] else None
         ctx["erro"] = erro
@@ -193,7 +210,7 @@ def _escala_id_gravada(conn, dados: dict) -> str:
 
 
 def _ctx_servicos(conn, prop, escala, dados: dict, form=None) -> dict:
-    ctx = _ctx_wizard(prop, "servicos")
+    ctx = _ctx_wizard(conn, prop, "servicos")
     ctx["dados"] = dados
     ctx["funcoes"] = rcat.listar_funcoes(conn, tipo=prop["tipo"])
     ctx["escalas"] = rcat.listar_escalas(conn)
@@ -316,7 +333,7 @@ def _ctx_custos(conn, prop) -> dict:
 @router.get("/propostas/{pid}/custos")
 def etapa_custos(request: Request, pid: int, conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
-    ctx = _ctx_wizard(prop, "custos")
+    ctx = _ctx_wizard(conn, prop, "custos")
     ctx.update(_ctx_custos(conn, prop))
     return templates.TemplateResponse(request, "etapa_custos.html", ctx)
 
@@ -410,7 +427,7 @@ def remover_linha_manual(request: Request, pid: int, lid: int, conn=Depends(conn
 def etapa_pagamento(request: Request, pid: int, conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
     return templates.TemplateResponse(request, "etapa_pagamento.html",
-                                      _ctx_wizard(prop, "pagamento"))
+                                      _ctx_wizard(conn, prop, "pagamento"))
 
 
 @router.post("/propostas/{pid}/pagamento")
@@ -426,7 +443,7 @@ async def salvar_pagamento(request: Request, pid: int, conn=Depends(conn_dep)):
         try:
             novos["data_limite_pagamento"] = parse_data(bruto)
         except ValueError:
-            ctx = _ctx_wizard(prop, "pagamento")
+            ctx = _ctx_wizard(conn, prop, "pagamento")
             ctx["dados"] = {**ctx["dados"], **novos, "data_limite_pagamento": bruto}
             ctx["erro"] = "Data-limite inválida - use dd/mm/aaaa."
             return templates.TemplateResponse(request, "etapa_pagamento.html", ctx)
@@ -438,7 +455,7 @@ async def salvar_pagamento(request: Request, pid: int, conn=Depends(conn_dep)):
 def etapa_revisao(request: Request, pid: int, conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
     itens = checklist.avaliar(conn, pid)
-    ctx = _ctx_wizard(prop, "revisao")
+    ctx = _ctx_wizard(conn, prop, "revisao")
     ctx.update({"itens": itens, "pode": checklist.pode_emitir(itens),
                 "total": rp.total_proposta(conn, pid), "erro": None})
     return templates.TemplateResponse(request, "etapa_revisao.html", ctx)
@@ -457,13 +474,13 @@ def emitir(request: Request, pid: int, conn=Depends(conn_dep)):
         emissao.emitir(conn, pid, _arquivo_dir())
     except ValueError as exc:  # checklist pendente
         itens = checklist.avaliar(conn, pid)
-        ctx = _ctx_wizard(prop, "revisao")
+        ctx = _ctx_wizard(conn, prop, "revisao")
         ctx.update({"itens": itens, "pode": False,
                     "total": rp.total_proposta(conn, pid), "erro": str(exc)})
         return templates.TemplateResponse(request, "etapa_revisao.html", ctx)
     except Exception:
         itens = checklist.avaliar(conn, pid)
-        ctx = _ctx_wizard(prop, "revisao")
+        ctx = _ctx_wizard(conn, prop, "revisao")
         ctx.update({"itens": itens, "pode": checklist.pode_emitir(itens),
                     "total": rp.total_proposta(conn, pid),
                     "erro": "Falha ao gerar o PDF. O rascunho foi preservado - tente novamente."})

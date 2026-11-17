@@ -506,3 +506,26 @@ def test_trocar_escala_no_mesmo_modo_descarta_override(client, tmp_path):
     client.post(f"/propostas/{pid}/servicos", data={**form, "escala_id": _escala_id(tmp_path, "6x1")})
     mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
     assert mo["sobrescrito"] == 0 and mo["valor_final_centavos"] == 160000
+
+
+# ---- wizard em colunas ----
+def _com_cliente(client):
+    pid = _nova(client)
+    client.post(f"/propostas/{pid}/cliente/novo", data={
+        "razao_social": "Cliente Exemplo Ltda", "cnpj": "11.222.333/0001-81",
+        "endereco": "Av. Exemplo, 1000", "email": "", "telefone": ""})
+    return pid
+
+
+def test_etapas_verticais_com_estado(client):
+    pid = _com_cliente(client)
+    r = client.get(f"/propostas/{pid}/servicos")
+    assert 'aria-label="Etapas"' in r.text and 'aria-current="step"' in r.text
+    assert 'data-estado="ok"' in r.text and f'href="/propostas/{pid}/cliente"' in r.text
+
+
+def test_resumo_lateral_mostra_total(client, tmp_path):
+    pid = _com_cliente(client)
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "Operacional", "valor": "1.000,00"})
+    r = client.get(f"/propostas/{pid}/local")
+    assert "Resumo da proposta" in r.text and "1.000,00" in r.text and "Cliente Exemplo Ltda" in r.text

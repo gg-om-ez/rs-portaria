@@ -1,6 +1,5 @@
-{% extends "base.html" %}
-{% block conteudo %}
-{% include "_passos.html" %}
+{% extends "_wizard.html" %}
+{% block etapa_conteudo %}
 <h1>Pagamento</h1>
 <form method="post" action="/propostas/{{ prop.id }}/pagamento" class="cartao">
   <label>Formas de pagamento</label>

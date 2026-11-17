@@ -113,3 +113,32 @@ def test_piso_e_legado_mantem_turno(conn):
     itens = _rotulos(conn, pid)
     assert "Horários do turno definidos" in itens
     assert "Pelo menos um dia ativo na escala" not in itens
+
+
+# ---- estado por etapa (navegação vertical) ----
+from app.routes.propostas import ETAPAS
+
+
+def test_estado_etapas_nova_proposta_sem_pendencia_futura(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    est = checklist.estado_etapas(checklist.avaliar(conn, pid), ETAPAS, "cliente")
+    assert set(est.values()) == {""}
+
+
+def test_estado_etapas_marca_pendencia_anterior(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"formas_pagamento": ""})
+    est = checklist.estado_etapas(checklist.avaliar(conn, pid), ETAPAS, "revisao")
+    assert est["pagamento"] == "pendente" and est["cliente"] == "ok" and est["custos"] == ""
+
+
+def test_estado_etapas_futura_nao_ok_fica_vazia(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"formas_pagamento": ""})
+    est = checklist.estado_etapas(checklist.avaliar(conn, pid), ETAPAS, "servicos")
+    assert est["pagamento"] == "" and est["local"] == "ok"
+
+
+def test_todo_item_tem_etapa(conn):
+    pid = _completa_continuo(conn)
+    assert all(i.etapa in ETAPAS for i in checklist.avaliar(conn, pid))

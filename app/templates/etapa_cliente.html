@@ -1,6 +1,5 @@
-{% extends "base.html" %}
-{% block conteudo %}
-{% include "_passos.html" %}
+{% extends "_wizard.html" %}
+{% block etapa_conteudo %}
 <h1>Cliente</h1>
 
 <form method="get" action="/propostas/{{ prop.id }}/cliente" class="busca">

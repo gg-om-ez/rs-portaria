@@ -1,6 +1,5 @@
-{% extends "base.html" %}
-{% block conteudo %}
-{% include "_passos.html" %}
+{% extends "_wizard.html" %}
+{% block etapa_conteudo %}
 <h1>Composição de custos</h1>
 <p>Toque no valor para ajustar. Linhas alteradas ficam destacadas; o total é sempre a soma.</p>
 <div id="tabela-custos">{% include "_tabela_custos.html" %}</div>

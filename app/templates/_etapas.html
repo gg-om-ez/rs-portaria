@@ -1,0 +1,16 @@
+{% set rotulos = {"cliente": "Cliente", "local": "Local", "servicos": "Serviços",
+                  "custos": "Custos", "pagamento": "Pagamento", "revisao": "Revisão"} %}
+<nav class="etapas cartao" aria-label="Etapas">
+  <div class="etapas-cabecalho">
+    <span>{{ prop.numero or "Rascunho #" ~ prop.id }} - {{ "Serviço contínuo" if prop.tipo == "continuo" else "Evento único" }}</span>
+    <strong>{{ resumo.cliente or "(sem cliente)" }}</strong>
+  </div>
+  <ol>
+    {% for e in etapas %}{% set st = estados[e] %}
+    <li><a href="/propostas/{{ prop.id }}/{{ e }}" data-estado="{{ st }}"{% if e == etapa %} aria-current="step"{% endif %}>
+      <span class="etapa-num">{{ loop.index }}</span>{{ rotulos[e] }}
+      {% if st == "ok" %}<span class="etapa-estado">OK</span>{% elif st == "pendente" %}<span class="etapa-estado pendente">Pendente</span>{% endif %}
+    </a></li>
+    {% endfor %}
+  </ol>
+</nav>
