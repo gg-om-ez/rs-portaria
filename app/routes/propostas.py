@@ -14,7 +14,7 @@ from app import repo_propostas as rp
 from app.calc import custo_profissional_continuo
 from app.datas import parse_data, parse_hora_24
 from app.db import conn_dep
-from app.moeda import parse_brl
+from app.moeda import parse_brl, parse_percentual
 from app.web import templates
 
 router = APIRouter()
@@ -354,11 +354,16 @@ def adicionar_linha_manual(request: Request, pid: int,
     if not descricao:
         return _responder_tabela(request, conn, pid, erro="Descrição é obrigatória.")
     try:
-        centavos = parse_brl(valor)
+        if valor.strip().endswith("%"):
+            # Linha percentual: o valor sai de recalcular_derivadas, sobre as linhas fixas
+            pct, centavos = parse_percentual(valor), 0
+        else:
+            pct, centavos = None, parse_brl(valor)
     except ValueError:
         return _responder_tabela(request, conn, pid,
-                                 erro="Valor inválido - use o formato 1.234,56.")
-    rp.inserir_linha(conn, pid, descricao, "manual", 1, centavos)
+                                 erro="Valor inválido - use 1.234,56 ou 5%.")
+    rp.inserir_linha(conn, pid, descricao, "manual", 1, centavos, percentual=pct)
+    rp.recalcular_derivadas(conn, pid, rcat.params_vigentes(conn))
     return _responder_tabela(request, conn, pid)
 
 
@@ -374,6 +379,7 @@ def remover_linha_manual(request: Request, pid: int, lid: int, conn=Depends(conn
     if linha is None or linha["proposta_id"] != pid or linha["categoria"] != "manual":
         raise HTTPException(404, "Linha não encontrada nesta proposta")
     rp.remover_linha(conn, lid)
+    rp.recalcular_derivadas(conn, pid, rcat.params_vigentes(conn))
     return _responder_tabela(request, conn, pid)
 
 

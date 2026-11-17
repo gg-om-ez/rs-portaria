@@ -184,3 +184,58 @@ def test_derivadas_e_acessorios_somem_sem_mao_de_obra(conn):
     rp.recalcular_derivadas(conn, pid, PARAMS)
     assert rp.linhas_da_proposta(conn, pid) == []
     assert rp.total_proposta(conn, pid) == 0
+
+
+# ---- linha manual percentual ----
+from app import repo_catalogo as rcat
+
+
+def _linha(conn, lid):
+    return conn.execute("SELECT * FROM linhas_custo WHERE id = ?", (lid,)).fetchone()
+
+
+def test_percentual_incide_sobre_linhas_fixas(conn):
+    rcat.seed_inicial(conn)  # encargos 0.58, margem 0.10
+    params = rcat.params_vigentes(conn)
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 100000)
+    rp.inserir_linha(conn, pid, "Operacional", "manual", 1, 10000)
+    lid = rp.inserir_linha(conn, pid, "Taxa", "manual", 1, 0, percentual=Decimal("0.10"))
+    rp.recalcular_derivadas(conn, pid, params)
+    # 1.000,00 + encargos 580,00 + margem 158,00 + manual 100,00 = 1.838,00 -> 10% = 183,80
+    assert _linha(conn, lid)["valor_final_centavos"] == 18380
+    assert rp.total_proposta(conn, pid) == 202180
+
+
+def test_percentuais_nao_se_compoem(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Fixa", "manual", 1, 325000)
+    a = rp.inserir_linha(conn, pid, "ISS", "manual", 1, 0, percentual=Decimal("0.05"))
+    b = rp.inserir_linha(conn, pid, "Outra", "manual", 1, 0, percentual=Decimal("0.02"))
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    assert [_linha(conn, a)["valor_final_centavos"], _linha(conn, b)["valor_final_centavos"]] == [16250, 6500]
+
+
+def test_override_de_percentual_preservado(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Fixa", "manual", 1, 325000)
+    lid = rp.inserir_linha(conn, pid, "ISS", "manual", 1, 0, percentual=Decimal("0.05"))
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    rp.sobrescrever_linha(conn, lid, 20000)
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    linha = _linha(conn, lid)
+    assert linha["valor_final_centavos"] == 20000 and linha["sobrescrito"] == 1
+    assert linha["valor_sugerido_centavos"] == 16250
+
+
+def test_duplicar_preserva_percentual(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Fixa", "manual", 1, 325000)
+    rp.inserir_linha(conn, pid, "ISS", "manual", 1, 0, percentual=Decimal("0.05"))
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    novo = rp.duplicar_proposta(conn, pid)
+    linhas = {l["descricao"]: l for l in rp.linhas_da_proposta(conn, novo)}
+    assert linhas["ISS"]["percentual"] == "0.05"
+    rp.sobrescrever_linha(conn, linhas["Fixa"]["id"], 100000)
+    rp.recalcular_derivadas(conn, novo, PARAMS)
+    assert _linha(conn, linhas["ISS"]["id"])["valor_final_centavos"] == 5000

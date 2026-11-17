@@ -60,7 +60,7 @@
   <tr><th>Descrição</th><th class="num">Custo unitário (R$)</th><th class="num">Qtd.</th><th class="num">Subtotal (R$)</th></tr>
   {% for l in s.linhas %}
   <tr>
-    <td>{{ l.descricao }}</td>
+    <td>{{ l.descricao }}{% if l.percentual_fmt %} ({{ l.percentual_fmt }}){% endif %}</td>
     <td class="num">{{ l.valor_unitario_fmt }}</td>
     <td class="num">{{ l.quantidade if l.categoria != "derivada" else "-" }}</td>
     <td class="num">{{ l.subtotal_fmt }}</td>

@@ -341,3 +341,30 @@ def test_inputs_de_data_marcados_para_mascara(client):
 
 def test_base_carrega_campos_js(client):
     assert "/static/campos.js" in client.get("/").text
+
+
+def test_adicionar_linha_percentual(client, tmp_path):
+    pid = _nova(client)
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "Operacional", "valor": "1.000,00"})
+    r = client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "ISS", "valor": "5%"},
+                    headers={"HX-Request": "true"})
+    assert r.status_code == 200 and "ISS (5%)" in r.text
+    linha = [l for l in _linha_manual(_conn(tmp_path), pid) if l["descricao"] == "ISS"][0]
+    assert linha["percentual"] == "0.05" and linha["valor_final_centavos"] == 5000
+
+
+def test_remover_fixa_recalcula_percentual(client, tmp_path):
+    pid = _nova(client)
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "Operacional", "valor": "1.000,00"})
+    client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "ISS", "valor": "5%"})
+    linhas = {l["descricao"]: l for l in _linha_manual(_conn(tmp_path), pid)}
+    client.post(f"/propostas/{pid}/linhas/{linhas['Operacional']['id']}/remover")
+    iss = [l for l in _linha_manual(_conn(tmp_path), pid) if l["descricao"] == "ISS"][0]
+    assert iss["valor_final_centavos"] == 0
+
+
+def test_linha_valor_invalido_mensagem(client):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "X", "valor": "abc"},
+                    headers={"HX-Request": "true"})
+    assert "Valor inválido - use 1.234,56 ou 5%." in r.text

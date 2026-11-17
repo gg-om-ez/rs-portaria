@@ -60,3 +60,8 @@ def encargos_centavos(base_centavos: int, params: Params) -> int:
 def margem_centavos(base_centavos: int, params: Params) -> int:
     """Margem administrativa: percentual sobre mão de obra + acessórios + encargos."""
     return _para_centavos(Decimal(base_centavos) * params.pct_margem)
+
+
+def aplicar_percentual(base_centavos: int, pct: Decimal) -> int:
+    """Linha manual percentual: fração sobre a base em centavos."""
+    return _para_centavos(Decimal(base_centavos) * pct)

@@ -1,5 +1,6 @@
-"""Conversão entre texto em reais (pt-BR) e centavos inteiros."""
+"""Conversão entre texto pt-BR e números: reais <-> centavos inteiros, percentuais."""
 import re
+from decimal import Decimal
 
 
 def parse_brl(texto: str) -> int:
@@ -44,3 +45,20 @@ def format_brl(centavos: int) -> str:
     reais, cents = divmod(centavos, 100)
     milhar = f"{reais:,}".replace(",", ".")
     return f"{'-' if negativo else ''}{milhar},{cents:02d}"
+
+
+def parse_percentual(texto: str) -> Decimal:
+    """'5%' -> Decimal('0.05'); '5,5 %' -> Decimal('0.055'). Exige o sinal de %."""
+    limpo = texto.strip()
+    if not limpo.endswith("%"):
+        raise ValueError(f"Percentual inválido: {texto!r}")
+    numero = limpo[:-1].strip().replace(",", ".")
+    if not re.fullmatch(r"\d+(\.\d+)?", numero):
+        raise ValueError(f"Percentual inválido: {texto!r}")
+    return Decimal(numero) / 100
+
+
+def format_percentual(fracao: Decimal | str) -> str:
+    """Decimal('0.055') -> '5,5%'."""
+    valor = (Decimal(fracao) * 100).normalize()
+    return format(valor, "f").replace(".", ",") + "%"

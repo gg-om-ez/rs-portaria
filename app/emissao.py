@@ -8,7 +8,7 @@ from app import checklist
 from app import repo_catalogo as rcat
 from app import repo_clientes as rc
 from app import repo_propostas as rp
-from app.moeda import format_brl
+from app.moeda import format_brl, format_percentual
 from app.pdf import nome_arquivo as _nome_arquivo
 
 
@@ -50,6 +50,7 @@ def montar_snapshot(conn: sqlite3.Connection, pid: int) -> dict:
         linhas.append({
             "descricao": l["descricao"], "categoria": l["categoria"],
             "quantidade": l["quantidade"], "sobrescrito": l["sobrescrito"],
+            "percentual_fmt": format_percentual(l["percentual"]) if l["percentual"] else "",
             "valor_unitario_centavos": l["valor_final_centavos"],
             "valor_unitario_fmt": format_brl(l["valor_final_centavos"]),
             "subtotal_centavos": subtotal, "subtotal_fmt": format_brl(subtotal),

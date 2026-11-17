@@ -2,7 +2,7 @@
   <tr><th>Descrição</th><th class="num">Unitário</th><th class="num">Qtd.</th><th class="num">Subtotal</th><th></th></tr>
   {% for l in linhas %}
   <tr class="{{ 'sobrescrita' if l.sobrescrito }}">
-    <td>{{ l.descricao }}
+    <td>{{ l.descricao }}{% if l.percentual %} ({{ l.percentual | pct }}){% endif %}
       {% if l.sobrescrito %}<span class="sugerido">sugerido: {{ l.valor_sugerido_centavos | brl }}</span>{% endif %}
     </td>
     <td class="num">

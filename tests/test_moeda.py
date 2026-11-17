@@ -63,3 +63,27 @@ def test_format_brl():
 
 def test_ida_e_volta():
     assert parse_brl(format_brl(999999999)) == 999999999
+
+
+from decimal import Decimal
+
+from app.moeda import format_percentual, parse_percentual
+
+
+@pytest.mark.parametrize("entrada,esperado", [
+    ("5%", Decimal("0.05")), (" 5,5 % ", Decimal("0.055")), ("0%", Decimal("0")),
+    ("12.5%", Decimal("0.125"))])
+def test_parse_percentual(entrada, esperado):
+    assert parse_percentual(entrada) == esperado
+
+
+@pytest.mark.parametrize("entrada", ["5", "", "%", "-5%", "abc%", "1,2,3%"])
+def test_parse_percentual_rejeita(entrada):
+    with pytest.raises(ValueError):
+        parse_percentual(entrada)
+
+
+@pytest.mark.parametrize("entrada,esperado", [
+    (Decimal("0.05"), "5%"), (Decimal("0.055"), "5,5%"), (Decimal("0.10"), "10%")])
+def test_format_percentual(entrada, esperado):
+    assert format_percentual(entrada) == esperado

@@ -3,7 +3,8 @@ import os
 import sqlite3
 from pathlib import Path
 
-# DDL compartilhada entre o CREATE inicial e o rebuild da migração (v1.1)
+# DDL compartilhada entre o CREATE inicial e o rebuild da migração (v1.1).
+# Colunas novas entram sempre no fim: o rebuild copia com SELECT *
 _LINHAS_CUSTO_DDL = """(
     id INTEGER PRIMARY KEY,
     proposta_id INTEGER NOT NULL REFERENCES propostas (id) ON DELETE CASCADE,
@@ -15,7 +16,8 @@ _LINHAS_CUSTO_DDL = """(
     valor_sugerido_centavos INTEGER NOT NULL,
     valor_final_centavos INTEGER NOT NULL,
     sobrescrito INTEGER NOT NULL DEFAULT 0,
-    ordem INTEGER NOT NULL DEFAULT 1
+    ordem INTEGER NOT NULL DEFAULT 1,
+    percentual TEXT  -- fração Decimal em texto; NULL = linha de valor fixo (v1.2)
 )"""
 
 SCHEMA = """
@@ -109,8 +111,18 @@ def _migrar_categoria_manual(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
+def _migrar_coluna_percentual(conn: sqlite3.Connection) -> None:
+    """Bancos pré-v1.2 não têm linhas_custo.percentual. Roda antes do rebuild de
+    categoria para a tabela antiga ter as mesmas colunas, na mesma ordem, do DDL."""
+    colunas = {r["name"] for r in conn.execute("PRAGMA table_info(linhas_custo)")}
+    if "percentual" not in colunas:
+        conn.execute("ALTER TABLE linhas_custo ADD COLUMN percentual TEXT")
+        conn.commit()
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    _migrar_coluna_percentual(conn)
     _migrar_categoria_manual(conn)
     conn.commit()
 

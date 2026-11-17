@@ -72,3 +72,23 @@ def test_migra_banco_pre_v11_para_aceitar_manual(tmp_path):
     c.execute(_INSERT_LINHA, (pid, "Operacional", "manual", 1, 20800, 20800, 0, 4))
     c.commit()
     c.close()
+
+
+def test_migra_pre_v11_adiciona_percentual(tmp_path):
+    c = dbmod.get_conn(tmp_path / "antigo.db")
+    dbmod.init_db(c)
+    c.executescript("DROP TABLE linhas_custo;" + _LINHAS_CUSTO_PRE_V11)
+    pid = c.execute("INSERT INTO propostas (tipo) VALUES ('continuo')").lastrowid
+    c.execute(_INSERT_LINHA, (pid, "Porteiro diurno", "mao_de_obra", 2, 160000, 155000, 1, 1))
+    c.commit()
+
+    dbmod.init_db(c)
+
+    colunas = [r["name"] for r in c.execute("PRAGMA table_info(linhas_custo)")]
+    assert colunas[-1] == "percentual"
+    linha = c.execute("SELECT * FROM linhas_custo WHERE descricao = 'Porteiro diurno'").fetchone()
+    assert (linha["quantidade"], linha["valor_final_centavos"], linha["percentual"]) == (2, 155000, None)
+    c.execute(_INSERT_LINHA, (pid, "Operacional", "manual", 1, 20800, 20800, 0, 4))
+    c.commit()
+    dbmod.init_db(c)  # idempotente
+    c.close()

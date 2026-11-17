@@ -1,8 +1,9 @@
 """Propostas, linhas de custo (com override destacável) e duplicação."""
 import json
 import sqlite3
+from decimal import Decimal
 
-from app.calc import Params, encargos_centavos, margem_centavos
+from app.calc import Params, aplicar_percentual, encargos_centavos, margem_centavos
 
 _ORDEM = {"mao_de_obra": 1, "acessorio": 2, "derivada": 3, "manual": 4}
 
@@ -67,13 +68,16 @@ def inserir_linha(
     quantidade: int,
     valor_sugerido_centavos: int,
     funcao_id: int | None = None,
+    percentual: Decimal | None = None,
 ) -> int:
     _exigir_rascunho(conn, pid)
     cur = conn.execute(
         "INSERT INTO linhas_custo (proposta_id, funcao_id, descricao, categoria, quantidade,"
-        " valor_sugerido_centavos, valor_final_centavos, ordem) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        " valor_sugerido_centavos, valor_final_centavos, ordem, percentual)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (pid, funcao_id, descricao, categoria, quantidade,
-         valor_sugerido_centavos, valor_sugerido_centavos, _ORDEM[categoria]),
+         valor_sugerido_centavos, valor_sugerido_centavos, _ORDEM[categoria],
+         None if percentual is None else str(percentual)),
     )
     conn.commit()
     return cur.lastrowid
@@ -198,8 +202,14 @@ def sincronizar_acessorios(conn: sqlite3.Connection, pid: int,
 
 
 def recalcular_derivadas(conn: sqlite3.Connection, pid: int, params: Params) -> None:
-    """Encargos sobre mão de obra; margem sobre mão de obra + acessórios + encargos."""
+    """Encargos e margem do motor, depois as linhas manuais percentuais."""
     _exigir_rascunho(conn, pid)
+    _recalcular_encargos_margem(conn, pid, params)
+    _recalcular_percentuais(conn, pid)
+
+
+def _recalcular_encargos_margem(conn: sqlite3.Connection, pid: int, params: Params) -> None:
+    """Encargos sobre mão de obra; margem sobre mão de obra + acessórios + encargos."""
     base_mo = _soma_categoria(conn, pid, "mao_de_obra")
     if base_mo == 0:
         # Sem mão de obra não há derivadas: remove linhas obsoletas
@@ -221,6 +231,30 @@ def recalcular_derivadas(conn: sqlite3.Connection, pid: int, params: Params) -> 
                        margem_centavos(base_margem, params))
 
 
+def _recalcular_percentuais(conn: sqlite3.Connection, pid: int) -> None:
+    """Cada linha percentual incide sobre a soma das linhas de valor fixo
+    (percentuais não se compõem entre si). Override do valor é preservado."""
+    base = conn.execute(
+        "SELECT COALESCE(SUM(valor_final_centavos * quantidade), 0) AS t"
+        " FROM linhas_custo WHERE proposta_id = ? AND percentual IS NULL",
+        (pid,),
+    ).fetchone()["t"]
+    linhas = conn.execute(
+        "SELECT id, percentual, sobrescrito, valor_final_centavos FROM linhas_custo"
+        " WHERE proposta_id = ? AND percentual IS NOT NULL",
+        (pid,),
+    ).fetchall()
+    for row in linhas:
+        sugerido = aplicar_percentual(base, Decimal(row["percentual"]))
+        final = row["valor_final_centavos"] if row["sobrescrito"] else sugerido
+        conn.execute(
+            "UPDATE linhas_custo SET valor_sugerido_centavos = ?, valor_final_centavos = ?"
+            " WHERE id = ?",
+            (sugerido, final, row["id"]),
+        )
+    conn.commit()
+
+
 def duplicar_proposta(conn: sqlite3.Connection, pid: int) -> int:
     orig = obter_proposta(conn, pid)
     if orig is None:
@@ -232,9 +266,9 @@ def duplicar_proposta(conn: sqlite3.Connection, pid: int) -> int:
     novo = cur.lastrowid
     conn.execute(
         "INSERT INTO linhas_custo (proposta_id, funcao_id, descricao, categoria, quantidade,"
-        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem)"
+        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem, percentual)"
         " SELECT ?, funcao_id, descricao, categoria, quantidade,"
-        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem"
+        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem, percentual"
         " FROM linhas_custo WHERE proposta_id = ?",
         (novo, pid),
     )
