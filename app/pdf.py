@@ -5,11 +5,13 @@ from pathlib import Path
 from app.web import env
 
 _STATIC = Path(__file__).parent / "static"
+# Único ponto do logo do documento: o rebranding troca o arquivo aqui
+LOGO = _STATIC / "logo.png"
 
 
 def render_documento_html(snapshot: dict) -> str:
     tpl = env.get_template("documento/proposta.html")
-    return tpl.render(s=snapshot, logo_uri=(_STATIC / "logo.png").as_uri())
+    return tpl.render(s=snapshot, logo_uri=LOGO.as_uri())
 
 
 def gerar_pdf(snapshot: dict) -> bytes:

@@ -34,3 +34,24 @@ def test_duplicar(client, tmp_path):
     r = client.post(f"/propostas/{pid}/duplicar", follow_redirects=False)
     assert r.status_code == 303
     assert conn.execute("SELECT COUNT(*) AS n FROM propostas").fetchone()["n"] == 2
+
+
+# ---- cores só em tokens (rebranding troca o bloco :root) ----
+import re
+from pathlib import Path
+
+_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b|rgba?\(")
+
+
+def _sem_root(css: str) -> str:
+    return re.sub(r":root\s*\{[^}]*\}", "", css)
+
+
+def test_style_css_so_usa_tokens():
+    css = Path("app/static/style.css").read_text()
+    assert _HEX.findall(_sem_root(css)) == []
+
+
+def test_templates_sem_cor_literal():
+    for t in Path("app/templates").rglob("*.html"):
+        assert _HEX.findall(_sem_root(t.read_text())) == [], t

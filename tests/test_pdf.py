@@ -59,3 +59,8 @@ def test_snapshot_legado_renderiza(snapshot):
         l.pop("percentual_fmt", None)
     html = render_documento_html(snapshot)
     assert "Turno de trabalho" in html and "Escala:" not in html
+
+
+def test_documento_usa_tokens(snapshot):
+    html = render_documento_html(snapshot)
+    assert "--doc-marca" in html and "var(--doc-marca)" in html

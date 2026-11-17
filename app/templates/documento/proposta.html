@@ -1,17 +1,20 @@
 <style>
+  /* Cores do documento só aqui: o rebranding troca este bloco e o logo (pdf.LOGO) */
+  :root { --doc-texto: #222; --doc-titulo: #1a1a1a; --doc-forte: #000; --doc-marca: #6abf4b;
+          --doc-borda: #999; --doc-cabecalho: #eef5ea; --doc-total: #f5f5f5; --doc-nota: #555; }
   @page { size: A4; margin: 2.2cm 1.8cm; }
-  body { font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; color: #222; line-height: 1.45; }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; color: var(--doc-texto); line-height: 1.45; }
   .logo { display: block; margin: 0 auto 8mm; height: 30mm; }
   h1 { text-align: center; font-size: 14pt; margin: 0 0 8mm; }
-  h2 { font-size: 12pt; color: #1a1a1a; border-bottom: 2px solid #6abf4b; padding-bottom: 1mm; margin: 7mm 0 3mm; }
+  h2 { font-size: 12pt; color: var(--doc-titulo); border-bottom: 2px solid var(--doc-marca); padding-bottom: 1mm; margin: 7mm 0 3mm; }
   .partes p { margin: 0.6mm 0; }
-  .partes strong { color: #000; }
+  .partes strong { color: var(--doc-forte); }
   table { width: 100%; border-collapse: collapse; margin: 3mm 0; }
-  th, td { border: 1px solid #999; padding: 2mm; text-align: left; font-size: 10pt; }
-  th { background: #eef5ea; }
+  th, td { border: 1px solid var(--doc-borda); padding: 2mm; text-align: left; font-size: 10pt; }
+  th { background: var(--doc-cabecalho); }
   td.num, th.num { text-align: right; }
-  tr.total td { font-weight: bold; background: #f5f5f5; }
-  .nota { font-size: 8.5pt; color: #555; }
+  tr.total td { font-weight: bold; background: var(--doc-total); }
+  .nota { font-size: 8.5pt; color: var(--doc-nota); }
   ul { margin: 1mm 0 0 5mm; padding: 0; }
   li { margin-bottom: 1.5mm; }
 </style>
