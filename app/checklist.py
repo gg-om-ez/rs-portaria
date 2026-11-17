@@ -2,6 +2,7 @@
 import sqlite3
 from dataclasses import dataclass
 
+from app import escalas
 from app import repo_clientes as rc
 from app import repo_propostas as rp
 
@@ -35,13 +36,22 @@ def avaliar(conn: sqlite3.Connection, pid: int) -> list[ItemChecklist]:
         ItemChecklist("Forma de pagamento definida", _tem(dados, "formas_pagamento"), True),
     ]
     if prop["tipo"] == "continuo":
-        itens += [
-            ItemChecklist("Duração do contrato e data de início",
-                          _tem(dados, "duracao_meses") and _tem(dados, "data_inicio"), True),
-            ItemChecklist("Horários do turno definidos",
-                          _tem(dados, "hora_inicio_turno") and _tem(dados, "hora_fim_turno"), True),
-            ItemChecklist("Vencimento acordado", _tem(dados, "vencimento"), True),
-        ]
+        modo = escalas.modo_de(dados)
+        itens.append(ItemChecklist("Duração do contrato e data de início",
+                                   _tem(dados, "duracao_meses") and _tem(dados, "data_inicio"), True))
+        if modo == "semanal":
+            # Personalizado: horários ficam em cada dia ativo, não num turno único
+            itens.append(ItemChecklist("Pelo menos um dia ativo na escala",
+                                       bool(dados.get("escala_semanal")), True))
+        else:
+            itens.append(ItemChecklist(
+                "Horários do turno definidos",
+                _tem(dados, "hora_inicio_turno") and _tem(dados, "hora_fim_turno"), True))
+        if modo == "diaria":
+            itens.append(ItemChecklist(
+                "Valor da diária e dias por mês",
+                bool(dados.get("valor_diaria_centavos")) and _tem(dados, "plantoes_mes"), True))
+        itens.append(ItemChecklist("Vencimento acordado", _tem(dados, "vencimento"), True))
     else:
         itens += [
             ItemChecklist("Data do evento definida", _tem(dados, "data_evento"), True),

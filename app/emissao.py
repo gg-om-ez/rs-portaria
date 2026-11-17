@@ -4,10 +4,11 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
-from app import checklist
+from app import checklist, escalas
 from app import repo_catalogo as rcat
 from app import repo_clientes as rc
 from app import repo_propostas as rp
+from app.calc import mensal_de_semanal
 from app.moeda import format_brl, format_percentual
 from app.pdf import nome_arquivo as _nome_arquivo
 
@@ -21,20 +22,48 @@ def proximo_numero(conn: sqlite3.Connection, ano: int) -> str:
     return f"RS-{ano}-{seq:04d}"
 
 
-def _nota_metodologica(conn: sqlite3.Connection, tipo: str) -> str:
+def _dias_fmt(dias: str) -> str:
+    return str(dias).replace(".", ",")
+
+
+def _nota_metodologica(conn: sqlite3.Connection, tipo: str, dados: dict) -> str:
+    if tipo != "continuo":
+        return "Valores por diária conforme catálogo vigente; alimentação e transporte por profissional."
+    modo = escalas.modo_de(dados)
+    if modo == "semanal":
+        return ("Valor semanal pela soma das diárias dos dias ativos; "
+                "mensal estimado = semanal x 52/12.")
+    if modo == "diaria":
+        return (f"Diária fechada de R$ {format_brl(int(dados['valor_diaria_centavos']))} por "
+                f"profissional x {_dias_fmt(dados['plantoes_mes'])} dias/mês; "
+                "demais valores conforme linhas listadas.")
     p = rcat.params_vigentes(conn)
-    if tipo == "continuo":
-        plantoes = rcat.param_int(conn, "plantoes_mes_padrao")
-        pct_noturno = int(p.pct_noturno * 100)
-        pct_encargos = int(p.pct_encargos * 100)
-        pct_margem = int(p.pct_margem * 100)
-        return (
-            f"Base estimada: piso mensal por função + adicional noturno de "
-            f"{pct_noturno}% sobre horas entre 22h-06h ({plantoes} plantões/mês); "
-            f"encargos sociais de {pct_encargos}% sobre a mão de obra; "
-            f"margem administrativa de {pct_margem}%."
-        )
-    return "Valores por diária conforme catálogo vigente; alimentação e transporte por profissional."
+    # Rascunho legado (sem escala gravada) é 12x36 com os dias da escala padrão
+    dias = dados.get("plantoes_mes") or rcat.escala_padrao(conn)["dias_mes"]
+    nome = dados.get("escala_nome") or "12x36"
+    return (
+        f"Base estimada: piso mensal por função + adicional noturno de "
+        f"{int(p.pct_noturno * 100)}% sobre horas entre 22h-06h "
+        f"({_dias_fmt(dias)} dias trabalhados/mês, escala {nome}); "
+        f"encargos sociais de {int(p.pct_encargos * 100)}% sobre a mão de obra; "
+        f"margem administrativa de {int(p.pct_margem * 100)}%."
+    )
+
+
+def _escala_snapshot(dados: dict) -> dict:
+    modo = escalas.modo_de(dados)
+    rotulos = dict(escalas.DIAS_SEMANA)
+    snap = {"nome": dados.get("escala_nome") or "12x36", "modo": modo,
+            "semanal_centavos": None, "mensal_centavos": None, "dias": []}
+    if modo == "semanal":
+        semanal = escalas.valor_semanal(dados)
+        snap.update({
+            "semanal_centavos": semanal, "mensal_centavos": mensal_de_semanal(semanal),
+            # rótulo congelado junto: o snapshot não depende do código para exibir o dia
+            "dias": [{"rotulo": rotulos[d["dia"]], "inicio": d["inicio"], "fim": d["fim"],
+                      "valor_centavos": d["valor_centavos"]} for d in dados.get("escala_semanal") or []],
+        })
+    return snap
 
 
 def montar_snapshot(conn: sqlite3.Connection, pid: int) -> dict:
@@ -57,7 +86,11 @@ def montar_snapshot(conn: sqlite3.Connection, pid: int) -> dict:
         })
     total = rp.total_proposta(conn, pid)
     tipo = prop["tipo"]
-    return {
+    dados = rp.dados_de(prop)
+    condicoes = [p for p in par(f"condicoes_{tipo}").split("\n") if p.strip()]
+    if tipo == "continuo" and escalas.modo_de(dados) in ("diaria", "semanal"):
+        condicoes += [p for p in par("condicoes_composicao_mensal").split("\n") if p.strip()]
+    snapshot = {
         "numero": prop["numero"] or "RASCUNHO",
         "tipo": tipo,
         "emitida_em": (prop["emitida_em"] or date.today().isoformat())[:10],
@@ -75,14 +108,17 @@ def montar_snapshot(conn: sqlite3.Connection, pid: int) -> dict:
             "email": cliente["email"] if cliente else "",
             "telefone": cliente["telefone"] if cliente else "",
         },
-        "dados": rp.dados_de(prop),
+        "dados": dados,
         "linhas": linhas,
         "total_centavos": total,
         "total_fmt": format_brl(total),
-        "condicoes": [p for p in par(f"condicoes_{tipo}").split("\n") if p.strip()],
+        "condicoes": condicoes,
         "obs_finais": par(f"obs_finais_{tipo}"),
-        "nota_metodologica": _nota_metodologica(conn, tipo),
+        "nota_metodologica": _nota_metodologica(conn, tipo, dados),
     }
+    if tipo == "continuo":
+        snapshot["escala"] = _escala_snapshot(dados)
+    return snapshot
 
 
 def _arquivar(pdf_bytes: bytes, arquivo_dir: Path, nome: str) -> bool:

@@ -131,7 +131,6 @@ _SEED_PARAMETROS = {
     "pct_noturno": "0.20",
     "pct_margem": "0.10",
     "divisor_horas": "220",
-    "plantoes_mes_padrao": "15",
     "validade_dias": "30",
     "valor_alimentacao_continuo": "58000",
     "valor_transporte_continuo": "18000",
@@ -166,6 +165,14 @@ _SEED_PARAMETROS = {
         "Em caso de cancelamento pelo CONTRATANTE após a confirmação do pagamento, será aplicada uma retenção de "
         "20% (vinte por cento) do valor total para cobertura de custos operacionais já incorridos.\n"
         "O prestador não se responsabiliza por bens pessoais dos participantes."
+    ),
+    "condicoes_composicao_mensal": (
+        "Os valores mensais deste orçamento são estimativas pela média de 52 semanas por ano "
+        "(52/12 semanas por mês). A fatura de cada mês considera os dias efetivamente previstos "
+        "na escala naquele mês.\n"
+        "Feriados que coincidam com dias da escala são faturados conforme a prestação efetiva do "
+        "serviço; a prestação em feriado e eventual acréscimo de valor devem ser acordados "
+        "previamente entre as partes."
     ),
     "obs_finais_continuo": (
         "Este documento funciona como orçamento e tem validade limitada. Tanto a proposta definitiva para o "

@@ -149,3 +149,44 @@ def test_arquivo_inacessivel_nao_impede_emissao(conn, proposta_pronta, tmp_path)
     assert n == 1
     assert rp.obter_proposta(conn, proposta_pronta)["pdf_arquivado"] == 1
     assert (destino / f"{snap['numero']} - Cliente Exemplo Ltda.pdf").exists()
+
+
+# ---- escala no snapshot ----
+SEMANA = [{"dia": d, "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000}
+          for d in ("qua", "qui", "sex")] + \
+         [{"dia": "sab", "inicio": "08:30", "fim": "14:00", "valor_centavos": 15000}]
+
+
+def test_snapshot_semanal(conn, proposta_pronta):
+    rp.atualizar_dados(conn, proposta_pronta, {
+        "escala_id": "6", "escala_nome": "Personalizado", "modo_preco": "semanal",
+        "escala_semanal": SEMANA})
+    snap = emissao.montar_snapshot(conn, proposta_pronta)
+    assert snap["escala"]["nome"] == "Personalizado"
+    assert (snap["escala"]["semanal_centavos"], snap["escala"]["mensal_centavos"]) == (75000, 325000)
+    assert snap["escala"]["dias"][0] == {"rotulo": "Qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000}
+    assert any(c.startswith("Os valores mensais") for c in snap["condicoes"])
+    assert "52/12" in snap["nota_metodologica"]
+    json.dumps(snap)
+
+
+def test_snapshot_piso_sem_clausula_mensal(conn, proposta_pronta):
+    snap = emissao.montar_snapshot(conn, proposta_pronta)
+    assert snap["escala"]["nome"] == "12x36" and snap["escala"]["modo"] == "piso_mensal"
+    assert not any(c.startswith("Os valores mensais") for c in snap["condicoes"])
+    assert "15 dias trabalhados/mês, escala 12x36" in snap["nota_metodologica"]
+
+
+def test_nota_piso_usa_dias_da_proposta(conn, proposta_pronta):
+    rp.atualizar_dados(conn, proposta_pronta, {"escala_nome": "5x2", "plantoes_mes": "21.67"})
+    snap = emissao.montar_snapshot(conn, proposta_pronta)
+    assert "21,67 dias trabalhados/mês, escala 5x2" in snap["nota_metodologica"]
+
+
+def test_nota_diaria(conn, proposta_pronta):
+    rp.atualizar_dados(conn, proposta_pronta, {
+        "escala_nome": "Diárias por escala", "modo_preco": "diaria",
+        "valor_diaria_centavos": 20000, "plantoes_mes": "13"})
+    snap = emissao.montar_snapshot(conn, proposta_pronta)
+    assert snap["nota_metodologica"].startswith("Diária fechada de R$ 200,00 por profissional x 13 dias/mês")
+    assert any(c.startswith("Os valores mensais") for c in snap["condicoes"])

@@ -48,12 +48,30 @@
 <h2>2. DESCRIÇÃO DOS SERVIÇOS</h2>
 <ul>
   {% if s.tipo == "continuo" %}
+    {# snapshot anterior às escalas não tem s.escala: cai no turno único #}
+    {% if s.escala %}<li><strong>Escala:</strong> {{ s.escala.nome }}</li>{% endif %}
+    {% if not s.escala or s.escala.modo != "semanal" %}
     <li><strong>Turno de trabalho:</strong> das {{ s.dados.hora_inicio_turno }} às {{ s.dados.hora_fim_turno }}</li>
+    {% endif %}
+    {% if s.escala and s.escala.modo == "diaria" %}
+    <li><strong>Diária:</strong> R$ {{ s.dados.valor_diaria_centavos | brl }} por profissional - {{ s.dados.plantoes_mes | replace(".", ",") }} dias trabalhados/mês</li>
+    {% endif %}
   {% endif %}
   {% if s.dados.trajes %}<li><strong>Trajes:</strong> {{ s.dados.trajes }}</li>{% endif %}
   {% if s.dados.comunicacao %}<li><strong>Comunicação:</strong> {{ s.dados.comunicacao }}</li>{% endif %}
   {% if s.dados.observacoes %}<li><strong>Observações:</strong> {{ s.dados.observacoes }}</li>{% endif %}
 </ul>
+
+{% if s.escala and s.escala.modo == "semanal" %}
+<table>
+  <tr><th>Dia</th><th>Horário</th><th class="num">Valor por profissional (R$)</th></tr>
+  {% for d in s.escala.dias %}
+  <tr><td>{{ d.rotulo }}</td><td>{{ d.inicio }} às {{ d.fim }}</td><td class="num">{{ d.valor_centavos | brl }}</td></tr>
+  {% endfor %}
+  <tr class="total"><td>Total semanal</td><td></td><td class="num">{{ s.escala.semanal_centavos | brl }}</td></tr>
+  <tr><td>Mensal estimado (52/12 semanas)</td><td></td><td class="num">{{ s.escala.mensal_centavos | brl }}</td></tr>
+</table>
+{% endif %}
 
 <h2>3. COMPOSIÇÃO DE CUSTOS</h2>
 <table>

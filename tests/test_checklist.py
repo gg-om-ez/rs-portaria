@@ -77,3 +77,39 @@ def test_campo_none_conta_como_vazio(conn):
 def test_avaliar_proposta_inexistente(conn):
     with pytest.raises(ValueError):
         checklist.avaliar(conn, 99999)
+
+
+# ---- por modo de escala ----
+SEMANA = [{"dia": "qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000}]
+
+
+def _rotulos(conn, pid):
+    return {i.rotulo: i for i in checklist.avaliar(conn, pid)}
+
+
+def test_semanal_exige_dia_ativo(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"modo_preco": "semanal", "escala_semanal": [],
+                                   "hora_inicio_turno": "", "hora_fim_turno": ""})
+    itens = _rotulos(conn, pid)
+    item = itens["Pelo menos um dia ativo na escala"]
+    assert item.critico and not item.ok
+    assert "Horários do turno definidos" not in itens
+    rp.atualizar_dados(conn, pid, {"escala_semanal": SEMANA})
+    assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is True
+
+
+def test_diaria_exige_valor_e_dias(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"modo_preco": "diaria"})
+    item = _rotulos(conn, pid)["Valor da diária e dias por mês"]
+    assert item.critico and not item.ok
+    rp.atualizar_dados(conn, pid, {"valor_diaria_centavos": 20000, "plantoes_mes": "21.67"})
+    assert _rotulos(conn, pid)["Valor da diária e dias por mês"].ok
+
+
+def test_piso_e_legado_mantem_turno(conn):
+    pid = _completa_continuo(conn)
+    itens = _rotulos(conn, pid)
+    assert "Horários do turno definidos" in itens
+    assert "Pelo menos um dia ativo na escala" not in itens

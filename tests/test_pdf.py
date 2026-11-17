@@ -38,3 +38,24 @@ def test_pdf_smoke(snapshot):
     pdf = gerar_pdf(snapshot)
     assert pdf[:5] == b"%PDF-"
     assert len(pdf) > 1000
+
+
+def test_html_escala_semanal(conn, snapshot):
+    snapshot["escala"] = {
+        "nome": "Personalizado", "modo": "semanal", "semanal_centavos": 75000, "mensal_centavos": 325000,
+        "dias": [{"rotulo": "Qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000},
+                 {"rotulo": "Sáb", "inicio": "08:30", "fim": "14:00", "valor_centavos": 15000}]}
+    html = render_documento_html(snapshot)
+    for trecho in ["Escala:", "Personalizado", "Qua", "09:00 às 18:15", "200,00", "750,00", "3.250,00",
+                   "Mensal estimado"]:
+        assert trecho in html, f"faltando no documento: {trecho}"
+    assert "Turno de trabalho" not in html
+
+
+def test_snapshot_legado_renderiza(snapshot):
+    # snapshot congelado antes das escalas: sem "escala" e linhas sem percentual_fmt
+    snapshot.pop("escala", None)
+    for l in snapshot["linhas"]:
+        l.pop("percentual_fmt", None)
+    html = render_documento_html(snapshot)
+    assert "Turno de trabalho" in html and "Escala:" not in html

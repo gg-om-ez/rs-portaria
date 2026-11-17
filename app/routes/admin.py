@@ -17,7 +17,6 @@ CHAVES = [
     ("pct_noturno", "Adicional noturno (fração, ex.: 0.20)"),
     ("pct_margem", "Margem administrativa (fração, ex.: 0.10)"),
     ("divisor_horas", "Divisor de horas mensal (CLT: 220)"),
-    ("plantoes_mes_padrao", "Plantões por mês (padrão 12x36)"),
     ("validade_dias", "Validade da proposta (dias)"),
     ("valor_alimentacao_continuo", "Alimentação mensal por profissional (R$)"),
     ("valor_transporte_continuo", "Transporte mensal por profissional (R$)"),
@@ -29,6 +28,8 @@ CHAVES = [
     ("pagamento_banco", "Dados bancários"),
     ("condicoes_continuo", "Condições gerais - contínuo (um parágrafo por linha)"),
     ("condicoes_evento", "Condições gerais - evento (um parágrafo por linha)"),
+    ("condicoes_composicao_mensal",
+     "Composição mensal e feriados - diária e personalizado (um parágrafo por linha)"),
     ("obs_finais_continuo", "Observações finais - contínuo"),
     ("obs_finais_evento", "Observações finais - evento"),
 ]
