@@ -40,7 +40,7 @@
   {% if s.tipo == "continuo" %}
     {% if s.dados.descricao_local %}<li><strong>Descrição:</strong> {{ s.dados.descricao_local }}</li>{% endif %}
     <li><strong>Local do serviço:</strong> {{ s.dados.endereco_servico }}</li>
-    <li><strong>Duração:</strong> {{ s.dados.duracao_meses }} meses - início previsto em {{ s.dados.data_inicio | data_br }}, com possibilidade de renovação durante contrato vigente.</li>
+    <li><strong>Duração:</strong> {{ s.dados.duracao_meses }}{% if s.dados.duracao_meses != "A informar" %} meses{% endif %} - início previsto em {{ s.dados.data_inicio | data_br }}, com possibilidade de renovação durante contrato vigente.</li>
   {% else %}
     {% if s.dados.nome_evento %}<li><strong>Evento:</strong> {{ s.dados.nome_evento }}</li>{% endif %}
     <li><strong>Local do evento:</strong> {{ s.dados.endereco_servico }}</li>

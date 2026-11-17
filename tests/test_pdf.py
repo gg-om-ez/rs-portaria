@@ -64,3 +64,11 @@ def test_snapshot_legado_renderiza(snapshot):
 def test_documento_usa_tokens(snapshot):
     html = render_documento_html(snapshot)
     assert "--doc-marca" in html and "var(--doc-marca)" in html
+
+
+def test_pdf_mostra_sentinelas(snapshot):
+    snapshot["dados"].update({"duracao_meses": "A informar", "data_inicio": "A informar",
+                              "vencimento": "A combinar"})
+    html = render_documento_html(snapshot)
+    assert "Duração:</strong> A informar" in html and "A combinar" in html
+    assert "A informar meses" not in html

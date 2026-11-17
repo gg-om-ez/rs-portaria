@@ -1,21 +1,25 @@
 {% extends "_wizard.html" %}
 {% block etapa_conteudo %}
+{% from "_macros.html" import sentinela, valor %}
 <h1>Pagamento</h1>
 <form method="post" action="/propostas/{{ prop.id }}/pagamento" class="cartao">
   <label>Formas de pagamento</label>
+  {{ sentinela("formas_pagamento", "A combinar", dados.formas_pagamento) }}
   {% for f in ["PIX", "Transferência bancária", "Espécie"] %}
   <label style="font-weight:400">
     <input type="checkbox" name="formas_pagamento" value="{{ f }}" style="width:auto"
       {{ 'checked' if f in (dados.formas_pagamento or '') }}> {{ f }}</label>
   {% endfor %}
   {% if prop.tipo == "continuo" %}
-    <label>Vencimento acordado <input name="vencimento" value="{{ dados.vencimento or '' }}"
-      placeholder="ex.: todo dia 05" required></label>
+    <label>Vencimento acordado <input name="vencimento" value="{{ valor(dados.vencimento) }}"
+      placeholder="Ex.: todo dia 05" required></label>
+      {{ sentinela("vencimento", "A combinar", dados.vencimento) }}
     <label style="font-weight:400"><input type="checkbox" name="parcela_ingresso" style="width:auto"
       {{ 'checked' if dados.parcela_ingresso == 'sim' }}> Aplicar parcela de ingresso (50% na assinatura)</label>
   {% else %}
     <label>Data-limite do pagamento antecipado
-      <input name="data_limite_pagamento" type="date" data-campo="data" value="{{ dados.data_limite_pagamento or '' }}" required></label>
+      <input name="data_limite_pagamento" type="date" data-campo="data" value="{{ valor(dados.data_limite_pagamento) }}" required></label>
+      {{ sentinela("data_limite_pagamento", "A combinar", dados.data_limite_pagamento) }}
   {% endif %}
   {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
   <button>Salvar e revisar</button>

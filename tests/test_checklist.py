@@ -142,3 +142,11 @@ def test_estado_etapas_futura_nao_ok_fica_vazia(conn):
 def test_todo_item_tem_etapa(conn):
     pid = _completa_continuo(conn)
     assert all(i.etapa in ETAPAS for i in checklist.avaliar(conn, pid))
+
+
+def test_checklist_aceita_sentinelas(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {
+        "endereco_servico": "A informar", "duracao_meses": "A informar", "data_inicio": "A informar",
+        "formas_pagamento": "A combinar", "vencimento": "A combinar"})
+    assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is True

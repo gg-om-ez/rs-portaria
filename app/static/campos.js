@@ -58,10 +58,36 @@
     for (var i = 0; i < alvos.length; i++) converter(alvos[i]);
   }
 
+  // "A informar" / "A combinar": marcada a opção, o campo fica desabilitado
+  // (não é enviado) e deixa de ser obrigatório; vale em qualquer ponteiro
+  function ligarSentinelas(raiz) {
+    var caixas = raiz.querySelectorAll ? raiz.querySelectorAll("input[data-sentinela-de]") : [];
+    for (var i = 0; i < caixas.length; i++) {
+      (function (caixa) {
+        if (caixa.hasAttribute("data-ligada")) return;
+        caixa.setAttribute("data-ligada", "");
+        var form = caixa.form || document;
+        var alvos = form.querySelectorAll('[name="' + caixa.getAttribute("data-sentinela-de") + '"]');
+        function sincronizar() {
+          for (var j = 0; j < alvos.length; j++) {
+            var alvo = alvos[j];
+            if (alvo.required) alvo.setAttribute("data-obrigatorio", "");
+            alvo.disabled = caixa.checked;
+            alvo.required = !caixa.checked && alvo.hasAttribute("data-obrigatorio");
+          }
+        }
+        caixa.addEventListener("change", sincronizar);
+        sincronizar();
+      })(caixas[i]);
+    }
+  }
+
+  function iniciar(raiz) { aplicar(raiz); ligarSentinelas(raiz); }
+
   // htmx.onLoad roda no carregamento inicial e em cada fragmento trocado
   if (window.htmx) {
-    window.htmx.onLoad(aplicar);
+    window.htmx.onLoad(iniciar);
   } else {
-    document.addEventListener("DOMContentLoaded", function () { aplicar(document); });
+    document.addEventListener("DOMContentLoaded", function () { iniciar(document); });
   }
 })();

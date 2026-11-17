@@ -130,3 +130,8 @@ iframe.preview { width: 100%; height: 70vh; border: 1px solid var(--borda); bord
 .acoes-etapa { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 16px; }
 .tabela-semana input { width: 8.5em; } .tabela-semana td.num input { text-align: right; }
 .funcoes-qtd { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0 16px; }
+.sentinela { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; font-size: .85rem;
+  margin: 6px 0 0; padding: 3px 10px; border: 1px solid var(--borda); border-radius: 99px; cursor: pointer; }
+.sentinela input { width: auto; margin: 0; }
+.sentinela:has(input:checked) { background: var(--neutro-claro); font-weight: 700; }
+input:disabled { background: var(--fundo); color: var(--texto-suave); }

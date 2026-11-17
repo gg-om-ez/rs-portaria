@@ -595,3 +595,37 @@ def test_ok_sem_mudar_valor_nao_congela_percentual(client, tmp_path):
     client.post(f"/propostas/{pid}/linhas/{iss['id']}/valor", data={"valor": "50,00"})
     iss = [l for l in _linha_manual(_conn(tmp_path), pid) if l["descricao"] == "ISS"][0]
     assert iss["sobrescrito"] == 0
+
+
+# ---- A informar / A combinar ----
+def test_local_a_informar(client, tmp_path):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/local", data={
+        "descricao_local": "", "endereco_servico": "", "duracao_meses": "", "data_inicio": "banana",
+        "endereco_servico_sentinela": "on", "duracao_meses_sentinela": "on", "data_inicio_sentinela": "on",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    d = _dados(tmp_path, pid)
+    assert (d["endereco_servico"], d["duracao_meses"], d["data_inicio"]) == ("A informar",) * 3
+    html = client.get(f"/propostas/{pid}/local").text
+    assert 'name="data_inicio_sentinela" data-sentinela-de="data_inicio" checked' in html
+
+
+def test_pagamento_a_combinar_continuo(client, tmp_path):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/pagamento", data={
+        "formas_pagamento": "PIX", "formas_pagamento_sentinela": "on",
+        "vencimento": "dia 5", "vencimento_sentinela": "on"}, follow_redirects=False)
+    assert r.status_code == 303
+    d = _dados(tmp_path, pid)
+    assert (d["formas_pagamento"], d["vencimento"]) == ("A combinar", "A combinar")
+
+
+def test_pagamento_a_combinar_evento(client, tmp_path):
+    pid = _nova(client, tipo="evento")
+    r = client.post(f"/propostas/{pid}/pagamento", data={
+        "formas_pagamento": "PIX", "data_limite_pagamento": "banana",
+        "data_limite_pagamento_sentinela": "on"}, follow_redirects=False)
+    assert r.status_code == 303
+    d = _dados(tmp_path, pid)
+    assert (d["formas_pagamento"], d["data_limite_pagamento"]) == ("PIX", "A combinar")

@@ -11,6 +11,7 @@ from app import repo_catalogo as rcat
 from app import repo_clientes as rcli
 from app import repo_propostas as rp
 from app.datas import parse_data, parse_hora_24
+from app.sentinelas import A_COMBINAR, A_INFORMAR, marcado
 from app.db import conn_dep
 from app.moeda import parse_brl, parse_percentual
 from app.web import templates
@@ -134,15 +135,17 @@ def _erro_validacao_local(tipo: str, dados: dict) -> str | None:
     if not dados.get("endereco_servico"):
         return "Endereço é obrigatório."
     if tipo == "continuo":
-        try:
-            if int(dados.get("duracao_meses") or "") <= 0:
+        if dados.get("duracao_meses") != A_INFORMAR:
+            try:
+                if int(dados.get("duracao_meses") or "") <= 0:
+                    return "Duração em meses inválida."
+            except ValueError:
                 return "Duração em meses inválida."
-        except ValueError:
-            return "Duração em meses inválida."
-        try:
-            dados["data_inicio"] = parse_data(dados.get("data_inicio", ""))
-        except ValueError:
-            return "Data de início inválida - use dd/mm/aaaa."
+        if dados.get("data_inicio") != A_INFORMAR:
+            try:
+                dados["data_inicio"] = parse_data(dados.get("data_inicio", ""))
+            except ValueError:
+                return "Data de início inválida - use dd/mm/aaaa."
     else:
         try:
             dados["data_evento"] = parse_data(dados.get("data_evento", ""))
@@ -162,6 +165,9 @@ async def salvar_local(request: Request, pid: int, conn=Depends(conn_dep)):
     form = await request.form()
     campos = _campos_local(prop["tipo"])
     dados = {c: str(form.get(c, "")).strip() for c in campos}
+    for campo in ("endereco_servico", "duracao_meses", "data_inicio"):
+        if campo in dados and marcado(form, campo):
+            dados[campo] = A_INFORMAR  # marcado vale mais que o texto digitado
     erro = _erro_validacao_local(prop["tipo"], dados)
     if erro:
         ctx = _ctx_wizard(conn, prop, "local")
@@ -446,14 +452,17 @@ def etapa_pagamento(request: Request, pid: int, conn=Depends(conn_dep)):
 async def salvar_pagamento(request: Request, pid: int, conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
     form = await request.form()
-    novos = {"formas_pagamento": ", ".join(form.getlist("formas_pagamento"))}
+    novos = {"formas_pagamento": A_COMBINAR if marcado(form, "formas_pagamento")
+             else ", ".join(form.getlist("formas_pagamento"))}
     if prop["tipo"] == "continuo":
-        novos["vencimento"] = str(form.get("vencimento", "")).strip()
+        novos["vencimento"] = (A_COMBINAR if marcado(form, "vencimento")
+                               else str(form.get("vencimento", "")).strip())
         novos["parcela_ingresso"] = "sim" if form.get("parcela_ingresso") else ""
     else:
         bruto = str(form.get("data_limite_pagamento", "")).strip()
         try:
-            novos["data_limite_pagamento"] = parse_data(bruto)
+            novos["data_limite_pagamento"] = (A_COMBINAR if marcado(form, "data_limite_pagamento")
+                                              else parse_data(bruto))
         except ValueError:
             ctx = _ctx_wizard(conn, prop, "pagamento")
             ctx["dados"] = {**ctx["dados"], **novos, "data_limite_pagamento": bruto}
