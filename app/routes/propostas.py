@@ -1,17 +1,15 @@
 import os
 import sqlite3
-from datetime import date, time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app import checklist, emissao
+from app import checklist, emissao, escalas
 from app import pdf as pdf_mod
 from app import repo_catalogo as rcat
 from app import repo_clientes as rcli
 from app import repo_propostas as rp
-from app.calc import custo_profissional_continuo
 from app.datas import parse_data, parse_hora_24
 from app.db import conn_dep
 from app.moeda import parse_brl, parse_percentual
@@ -154,44 +152,26 @@ async def salvar_local(request: Request, pid: int, conn=Depends(conn_dep)):
     return RedirectResponse(f"/propostas/{pid}/servicos", status_code=303)
 
 
-def _sugerido_para(conn, prop, funcao, dados) -> int:
-    """Valor sugerido de uma função conforme o tipo da proposta e o turno informado."""
-    if prop["tipo"] == "evento" or not funcao["aplica_noturno"]:
-        return funcao["valor_base_centavos"]
-    ini = time.fromisoformat(dados.get("hora_inicio_turno", "18:00"))
-    fim = time.fromisoformat(dados.get("hora_fim_turno", "06:00"))
-    plantoes = int(dados.get("plantoes_mes") or rcat.param_int(conn, "plantoes_mes_padrao"))
-    return custo_profissional_continuo(
-        funcao["valor_base_centavos"], ini, fim, plantoes, rcat.params_vigentes(conn)
-    )
-
-
 def _campos_servicos(tipo: str) -> list[str]:
+    """Campos livres da etapa; os da escala (contínuo) vêm de escalas.ler_form_escala."""
     if tipo == "continuo":
-        return ["hora_inicio_turno", "hora_fim_turno", "plantoes_mes", "trajes", "observacoes"]
+        return ["trajes", "observacoes"]
     return ["trajes", "comunicacao", "observacoes"]
 
 
-def _erro_validacao_servicos(tipo: str, dados: dict) -> str | None:
-    """Valida e normaliza os horários do turno para HH:MM em `dados` (in-place)."""
-    if tipo != "continuo":
-        return None
-    for campo, rotulo in [
-        ("hora_inicio_turno", "Horário de início do turno"),
-        ("hora_fim_turno", "Horário de término do turno"),
-    ]:
+def _escala_escolhida(conn, bruto, dados: dict) -> sqlite3.Row:
+    """Escala do formulário/query; senão a gravada na proposta; senão 12x36 (legado)."""
+    for candidato in (bruto, dados.get("escala_id")):
+        if candidato in (None, ""):
+            continue
         try:
-            dados[campo] = parse_hora_24(dados.get(campo, ""))
+            escala = rcat.obter_escala(conn, int(candidato))
         except ValueError:
-            return f"{rotulo} inválido - use HH:MM (24h)."
-    plantoes = dados.get("plantoes_mes") or ""
-    if plantoes:
-        try:
-            if int(plantoes) <= 0:
-                raise ValueError
-        except ValueError:
-            return "Plantões por mês inválido."
-    return None
+            escala = None
+        if escala is None:
+            raise HTTPException(422, "Escala inválida")
+        return escala
+    return rcat.escala_padrao(conn)
 
 
 def _erro_validacao_qtds(conn, tipo: str, form) -> str | None:
@@ -207,18 +187,33 @@ def _erro_validacao_qtds(conn, tipo: str, form) -> str | None:
     return None
 
 
-@router.get("/propostas/{pid}/servicos")
-def etapa_servicos(request: Request, pid: int, conn=Depends(conn_dep)):
-    prop = _proposta_ou_404(conn, pid)
+def _ctx_servicos(conn, prop, escala, dados: dict, form=None) -> dict:
     ctx = _ctx_wizard(prop, "servicos")
+    ctx["dados"] = dados
     ctx["funcoes"] = rcat.listar_funcoes(conn, tipo=prop["tipo"])
+    ctx["escalas"] = rcat.listar_escalas(conn)
+    ctx["escala"] = escala
+    ctx["dias_semana"] = escalas.DIAS_SEMANA
+    ctx["dias"] = escalas.dias_para_form(dados=dados, form=form)
+    # Dias/mês: o gravado vale só para a mesma escala; ao trocar, sugere o da nova
+    mesma = escala is not None and str(dados.get("escala_id") or "") == str(escala["id"])
+    ctx["dias_mes"] = (dados.get("plantoes_mes") if mesma or form is not None else None) \
+        or (escala["dias_mes"] if escala is not None else "") or ""
+    ctx["erro"] = None
+    return ctx
+
+
+@router.get("/propostas/{pid}/servicos")
+def etapa_servicos(request: Request, pid: int, escala_id: str = "", conn=Depends(conn_dep)):
+    prop = _proposta_ou_404(conn, pid)
+    dados = rp.dados_de(prop)
+    escala = _escala_escolhida(conn, escala_id, dados) if prop["tipo"] == "continuo" else None
+    ctx = _ctx_servicos(conn, prop, escala, dados)
     ctx["qtd_atuais"] = {
         l["funcao_id"]: l["quantidade"]
         for l in rp.linhas_da_proposta(conn, pid)
         if l["categoria"] == "mao_de_obra" and l["funcao_id"]
     }
-    ctx["plantoes_padrao"] = rcat.param_int(conn, "plantoes_mes_padrao")
-    ctx["erro"] = None
     return templates.TemplateResponse(request, "etapa_servicos.html", ctx)
 
 
@@ -226,37 +221,57 @@ def etapa_servicos(request: Request, pid: int, conn=Depends(conn_dep)):
 async def salvar_servicos(request: Request, pid: int, conn=Depends(conn_dep)):
     prop = _proposta_ou_404(conn, pid)
     form = await request.form()
-    campos = _campos_servicos(prop["tipo"])
-    dados_form = {c: str(form.get(c, "")).strip() for c in campos}
-    erro = (_erro_validacao_servicos(prop["tipo"], dados_form)
-            or _erro_validacao_qtds(conn, prop["tipo"], form))
+    tipo = prop["tipo"]
+    dados_anteriores = rp.dados_de(prop)
+    dados_form = {c: str(form.get(c, "")).strip() for c in _campos_servicos(tipo)}
+    erro, escala = None, None
+    if tipo == "continuo":
+        escala = _escala_escolhida(conn, form.get("escala_id"), dados_anteriores)
+        dados_escala, erro = escalas.ler_form_escala(escala, form)
+        dados_form.update(dados_escala)
+    erro = erro or _erro_validacao_qtds(conn, tipo, form)
     if erro:
-        ctx = _ctx_wizard(prop, "servicos")
-        ctx["dados"] = {**ctx["dados"], **dados_form}
-        ctx["funcoes"] = rcat.listar_funcoes(conn, tipo=prop["tipo"])
+        # Re-exibe o texto digitado, inclusive o que não passou na validação
+        brutos = {c: str(form.get(c, "")).strip() for c in
+                  ("hora_inicio_turno", "hora_fim_turno", "plantoes_mes", "valor_diaria")}
+        ctx = _ctx_servicos(conn, prop, escala,
+                            {**dados_anteriores, **dados_form, **brutos,
+                             "valor_diaria_centavos": None},
+                            form=form)
         ctx["qtd_atuais"] = {}
         for funcao in ctx["funcoes"]:
             bruto = form.get(f"qtd_{funcao['id']}")
             if bruto is not None:
                 ctx["qtd_atuais"][funcao["id"]] = bruto
-        ctx["plantoes_padrao"] = rcat.param_int(conn, "plantoes_mes_padrao")
         ctx["erro"] = erro
         return templates.TemplateResponse(request, "etapa_servicos.html", ctx)
     rp.atualizar_dados(conn, pid, dados_form)
     prop = rp.obter_proposta(conn, pid)
     dados = rp.dados_de(prop)
+    params = rcat.params_vigentes(conn)
+
+    linhas_mo = [l for l in rp.linhas_da_proposta(conn, pid) if l["categoria"] == "mao_de_obra"]
+    # Override feito sob outro modo de preço não vale no novo (seria preço de
+    # outro modelo, silencioso): troca de modo volta as linhas ao sugerido
+    if tipo == "continuo" and escalas.modo_de(dados) != escalas.modo_de(dados_anteriores):
+        for linha in linhas_mo:
+            if linha["sobrescrito"]:
+                rp.restaurar_linha(conn, linha["id"])
+        linhas_mo = [l for l in rp.linhas_da_proposta(conn, pid) if l["categoria"] == "mao_de_obra"]
 
     # upsert por funcao_id: preserva override de linhas já existentes em vez de
     # apagar e recriar (o que perderia silenciosamente qualquer valor sobrescrito)
-    linhas_mo = [l for l in rp.linhas_da_proposta(conn, pid) if l["categoria"] == "mao_de_obra"]
     existentes = {l["funcao_id"]: l for l in linhas_mo if l["funcao_id"] is not None}
     orfas = [l for l in linhas_mo if l["funcao_id"] is None]  # duplicatas antigas sem função
     vistos = set()
-    for funcao in rcat.listar_funcoes(conn, tipo=prop["tipo"]):
+    for funcao in rcat.listar_funcoes(conn, tipo=tipo):
         qtd = int(form.get(f"qtd_{funcao['id']}") or 0)
         if qtd > 0:
             vistos.add(funcao["id"])
-            sugerido = _sugerido_para(conn, prop, funcao, dados)
+            if tipo == "evento":
+                sugerido = funcao["valor_base_centavos"]
+            else:
+                sugerido = escalas.sugerido_mensal(funcao, dados, params)
             if funcao["id"] in existentes:
                 rp.atualizar_linha_mao_de_obra(conn, existentes[funcao["id"]]["id"], qtd, sugerido)
             else:
@@ -268,13 +283,13 @@ async def salvar_servicos(request: Request, pid: int, conn=Depends(conn_dep)):
     for linha in orfas:
         rp.remover_linha(conn, linha["id"])
 
-    sufixo = prop["tipo"]  # 'continuo' | 'evento'
+    sufixo = tipo  # 'continuo' | 'evento'
     rp.sincronizar_acessorios(
         conn, pid,
         valor_alimentacao=rcat.param_int(conn, f"valor_alimentacao_{sufixo}"),
         valor_transporte=rcat.param_int(conn, f"valor_transporte_{sufixo}"),
     )
-    rp.recalcular_derivadas(conn, pid, rcat.params_vigentes(conn))
+    rp.recalcular_derivadas(conn, pid, params)
     return RedirectResponse(f"/propostas/{pid}/custos", status_code=303)
 
 

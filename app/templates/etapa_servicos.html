@@ -4,10 +4,39 @@
 <h1>Serviços</h1>
 <form method="post" action="/propostas/{{ prop.id }}/servicos" class="cartao">
   {% if prop.tipo == "continuo" %}
-    <label>Início do turno <input name="hora_inicio_turno" type="time" data-campo="hora" value="{{ dados.hora_inicio_turno or '18:00' }}" required></label>
-    <label>Fim do turno <input name="hora_fim_turno" type="time" data-campo="hora" value="{{ dados.hora_fim_turno or '06:00' }}" required></label>
-    <label>Plantões por mês (por profissional)
-      <input name="plantoes_mes" inputmode="numeric" value="{{ dados.plantoes_mes or plantoes_padrao }}"></label>
+    {# trocar a escala busca a página de novo e recorta só o bloco #campos-escala #}
+    <label>Escala <select name="escala_id"
+        hx-get="/propostas/{{ prop.id }}/servicos" hx-target="#campos-escala"
+        hx-select="#campos-escala" hx-swap="outerHTML">
+      {% for e in escalas %}
+      <option value="{{ e.id }}" {{ 'selected' if e.id == escala.id }}>{{ e.nome }}</option>
+      {% endfor %}
+    </select></label>
+
+    <div id="campos-escala">
+    {% if escala.modo == "semanal" %}
+      <p>Marque os dias trabalhados e informe o horário e o valor da diária de cada um.</p>
+      {% for chave, rotulo in dias_semana %}{% set d = dias[chave] %}
+      <fieldset class="dia-escala">
+        <legend><label style="font-weight:600;margin:0">
+          <input type="checkbox" name="dia_{{ chave }}_ativo" style="width:auto" {{ 'checked' if d.ativo }}> {{ rotulo }}</label></legend>
+        <label>Início <input name="dia_{{ chave }}_inicio" type="time" data-campo="hora" value="{{ d.inicio }}"></label>
+        <label>Fim <input name="dia_{{ chave }}_fim" type="time" data-campo="hora" value="{{ d.fim }}"></label>
+        <label>Valor do dia (R$) <input name="dia_{{ chave }}_valor" inputmode="decimal" value="{{ d.valor }}" placeholder="0,00"></label>
+      </fieldset>
+      {% endfor %}
+    {% else %}
+      <label>Início do turno <input name="hora_inicio_turno" type="time" data-campo="hora" value="{{ dados.hora_inicio_turno or '18:00' }}" required></label>
+      <label>Fim do turno <input name="hora_fim_turno" type="time" data-campo="hora" value="{{ dados.hora_fim_turno or '06:00' }}" required></label>
+      {% if escala.modo == "diaria" %}
+      <label>Valor da diária por profissional (R$)
+        <input name="valor_diaria" inputmode="decimal" placeholder="0,00"
+          value="{{ (dados.valor_diaria_centavos | brl) if dados.valor_diaria_centavos is number else (dados.valor_diaria or '') }}"></label>
+      {% endif %}
+      <label>Dias trabalhados por mês (por profissional)
+        <input name="plantoes_mes" inputmode="decimal" value="{{ dias_mes | replace('.', ',') }}"></label>
+    {% endif %}
+    </div>
   {% else %}
     <label>Comunicação <select name="comunicacao">
       <option value="">- não se aplica -</option>
@@ -25,7 +54,7 @@
 
   <h2>Funções e quantidades</h2>
   {% for f in funcoes %}
-  <label>{{ f.nome }} - base {{ f.valor_base_centavos | brl }}
+  <label>{{ f.nome }}{% if prop.tipo == "evento" or escala.modo == "piso_mensal" %} - base {{ f.valor_base_centavos | brl }}{% endif %}
     <input name="qtd_{{ f.id }}" inputmode="numeric" value="{{ qtd_atuais.get(f.id, 0) }}">
   </label>
   {% endfor %}

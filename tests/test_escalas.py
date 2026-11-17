@@ -52,3 +52,65 @@ def test_sugerido_semanal():
 def test_sugerido_diaria():
     dados = {"modo_preco": "diaria", "valor_diaria_centavos": 20000, "plantoes_mes": "21.67"}
     assert escalas.sugerido_mensal(SEM_NOTURNO, dados, P) == 433400
+
+
+# ---- ler_form_escala ----
+import pytest
+
+PERSONALIZADO = {"id": 6, "nome": "Personalizado", "modo": "semanal", "dias_mes": None}
+E12X36 = {"id": 1, "nome": "12x36", "modo": "piso_mensal", "dias_mes": "15"}
+DIARIAS = {"id": 5, "nome": "Diárias por escala", "modo": "diaria", "dias_mes": None}
+E5X2_DIARIA = {"id": 3, "nome": "5x2", "modo": "diaria", "dias_mes": "21.67"}
+
+FORM_EXEMPLO = {
+    **{f"dia_{d}_{c}": v for d in ("qua", "qui", "sex")
+       for c, v in (("ativo", "on"), ("inicio", "09:00"), ("fim", "18:15"), ("valor", "200,00"))},
+    "dia_sab_ativo": "on", "dia_sab_inicio": "08:30", "dia_sab_fim": "14:00", "dia_sab_valor": "150,00",
+    "dia_seg_inicio": "07:00",  # dia inativo: campos ignorados
+}
+
+
+def test_ler_form_personalizado():
+    dados, erro = escalas.ler_form_escala(PERSONALIZADO, FORM_EXEMPLO)
+    assert erro is None
+    assert (dados["escala_id"], dados["escala_nome"], dados["modo_preco"]) == ("6", "Personalizado", "semanal")
+    assert dados["escala_semanal"] == SEMANA
+
+
+@pytest.mark.parametrize("ajuste,mensagem", [
+    ({k: v for k, v in FORM_EXEMPLO.items() if not k.endswith("_ativo")}, "Ative pelo menos um dia da semana."),
+    ({**FORM_EXEMPLO, "dia_sab_fim": "25:00"}, "Horário inválido em Sáb."),
+    ({**FORM_EXEMPLO, "dia_qua_valor": "0"}, "Valor inválido em Qua."),
+    ({**FORM_EXEMPLO, "dia_qui_valor": "abc"}, "Valor inválido em Qui."),
+])
+def test_ler_form_personalizado_erros(ajuste, mensagem):
+    assert escalas.ler_form_escala(PERSONALIZADO, ajuste)[1] == mensagem
+
+
+def test_ler_form_piso_usa_dias_da_escala():
+    dados, erro = escalas.ler_form_escala(E12X36, {"hora_inicio_turno": "6:00", "hora_fim_turno": "18:00"})
+    assert erro is None
+    assert dados["plantoes_mes"] == "15" and dados["hora_inicio_turno"] == "06:00"
+
+
+def test_ler_form_diaria():
+    dados, erro = escalas.ler_form_escala(E5X2_DIARIA, {
+        "hora_inicio_turno": "09:00", "hora_fim_turno": "18:00", "valor_diaria": "200,00"})
+    assert erro is None
+    assert (dados["valor_diaria_centavos"], dados["plantoes_mes"]) == (20000, "21.67")
+
+
+@pytest.mark.parametrize("escala,form,mensagem", [
+    (E12X36, {"hora_inicio_turno": "x", "hora_fim_turno": "18:00"},
+     "Horário de início do turno inválido - use HH:MM (24h)."),
+    (E12X36, {"hora_inicio_turno": "06:00", "hora_fim_turno": ""},
+     "Horário de término do turno inválido - use HH:MM (24h)."),
+    (E12X36, {"hora_inicio_turno": "06:00", "hora_fim_turno": "18:00", "plantoes_mes": "0"},
+     "Dias trabalhados por mês inválido."),
+    (DIARIAS, {"hora_inicio_turno": "06:00", "hora_fim_turno": "18:00", "valor_diaria": "200,00"},
+     "Dias trabalhados por mês inválido."),
+    (E5X2_DIARIA, {"hora_inicio_turno": "06:00", "hora_fim_turno": "18:00", "valor_diaria": ""},
+     "Valor da diária inválido."),
+])
+def test_ler_form_erros_turno(escala, form, mensagem):
+    assert escalas.ler_form_escala(escala, form)[1] == mensagem

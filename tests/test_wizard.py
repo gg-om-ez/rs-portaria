@@ -368,3 +368,116 @@ def test_linha_valor_invalido_mensagem(client):
     r = client.post(f"/propostas/{pid}/linhas/nova", data={"descricao": "X", "valor": "abc"},
                     headers={"HX-Request": "true"})
     assert "Valor inválido - use 1.234,56 ou 5%." in r.text
+
+
+# ---- menu de escalas ----
+def _escala_id(tmp_path, nome):
+    return _conn(tmp_path).execute("SELECT id FROM escalas WHERE nome = ?", (nome,)).fetchone()["id"]
+
+
+def _funcao_id(tmp_path, prefixo):
+    return _conn(tmp_path).execute(
+        "SELECT id FROM funcoes WHERE nome LIKE ?", (prefixo + "%",)).fetchone()["id"]
+
+
+def _form_exemplo(tmp_path):
+    form = {"escala_id": _escala_id(tmp_path, "Personalizado"),
+            "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
+            f"qtd_{_funcao_id(tmp_path, 'Portaria diurna')}": "1"}
+    for d in ("qua", "qui", "sex"):
+        form.update({f"dia_{d}_ativo": "on", f"dia_{d}_inicio": "09:00",
+                     f"dia_{d}_fim": "18:15", f"dia_{d}_valor": "200,00"})
+    form.update({"dia_sab_ativo": "on", "dia_sab_inicio": "08:30",
+                 "dia_sab_fim": "14:00", "dia_sab_valor": "150,00"})
+    return form
+
+
+def _linhas(tmp_path, pid):
+    return _conn(tmp_path).execute(
+        "SELECT * FROM linhas_custo WHERE proposta_id=? ORDER BY ordem, id", (pid,)).fetchall()
+
+
+def test_servicos_personalizado_exemplo(client, tmp_path):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/servicos", data=_form_exemplo(tmp_path), follow_redirects=False)
+    assert r.status_code == 303
+    linhas = _linhas(tmp_path, pid)
+    assert [l["categoria"] for l in linhas] == ["mao_de_obra"]
+    assert (linhas[0]["valor_final_centavos"], linhas[0]["quantidade"]) == (325000, 1)
+    dados = _dados(tmp_path, pid)
+    assert len(dados["escala_semanal"]) == 4
+    assert dados["escala_semanal"][0] == {"dia": "qua", "inicio": "09:00", "fim": "18:15", "valor_centavos": 20000}
+
+
+def test_servicos_personalizado_sem_dia(client, tmp_path):
+    pid = _nova(client)
+    form = {k: v for k, v in _form_exemplo(tmp_path).items() if not k.endswith("_ativo")}
+    r = client.post(f"/propostas/{pid}/servicos", data=form)
+    assert r.status_code == 200 and "Ative pelo menos um dia da semana." in r.text
+    assert 'name="dia_qua_inicio"' in r.text  # re-exibe com a escala submetida
+    assert _linhas(tmp_path, pid) == []
+
+
+def test_servicos_diaria_usa_dias_da_escala(client, tmp_path):
+    e5x2 = _escala_id(tmp_path, "5x2")
+    client.post(f"/admin/escalas/{e5x2}", data={"modo": "diaria", "dias_mes": "21,67"})
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/servicos", data={
+        "escala_id": e5x2, "hora_inicio_turno": "09:00", "hora_fim_turno": "18:00",
+        "valor_diaria": "200,00", "trajes": "Fardamento padrão da empresa prestadora",
+        "observacoes": "", f"qtd_{_funcao_id(tmp_path, 'Portaria diurna')}": "1",
+    }, follow_redirects=False)
+    assert r.status_code == 303
+    assert [l["valor_final_centavos"] for l in _linhas(tmp_path, pid)] == [433400]
+
+
+def test_servicos_diarias_por_escala_exige_dias(client, tmp_path):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/servicos", data={
+        "escala_id": _escala_id(tmp_path, "Diárias por escala"), "hora_inicio_turno": "09:00",
+        "hora_fim_turno": "18:00", "valor_diaria": "200,00", "plantoes_mes": "",
+        "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
+    })
+    assert r.status_code == 200 and "Dias trabalhados por mês inválido." in r.text
+
+
+def test_trocar_modo_descarta_override(client, tmp_path):
+    pid = _nova(client)
+    diurna = _funcao_id(tmp_path, "Portaria diurna")
+    client.post(f"/propostas/{pid}/servicos", data={
+        "hora_inicio_turno": "07:00", "hora_fim_turno": "19:00", "plantoes_mes": "15",
+        "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
+        f"qtd_{diurna}": "1"})
+    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
+    client.post(f"/propostas/{pid}/linhas/{mo['id']}/valor", data={"valor": "9.999,99"})
+    client.post(f"/propostas/{pid}/servicos", data=_form_exemplo(tmp_path))
+    mo = [l for l in _linhas(tmp_path, pid) if l["categoria"] == "mao_de_obra"][0]
+    assert (mo["valor_final_centavos"], mo["sobrescrito"]) == (325000, 0)
+
+
+def test_get_servicos_escala_por_query(client, tmp_path):
+    pid = _nova(client)
+    r = client.get(f"/propostas/{pid}/servicos?escala_id={_escala_id(tmp_path, 'Personalizado')}")
+    assert 'name="dia_qua_ativo"' in r.text and 'id="campos-escala"' in r.text
+    assert 'hx-select="#campos-escala"' in r.text
+    padrao = client.get(f"/propostas/{pid}/servicos").text
+    assert 'name="dia_qua_ativo"' not in padrao and 'name="hora_inicio_turno"' in padrao
+
+
+def test_servicos_reabre_com_escala_salva(client, tmp_path):
+    pid = _nova(client)
+    client.post(f"/propostas/{pid}/servicos", data=_form_exemplo(tmp_path))
+    r = client.get(f"/propostas/{pid}/servicos")
+    assert 'name="dia_qua_ativo" style="width:auto" checked' in r.text
+    assert 'value="200,00"' in r.text
+
+
+def test_servicos_erro_reexibe_valores_digitados(client, tmp_path):
+    pid = _nova(client)
+    r = client.post(f"/propostas/{pid}/servicos", data={
+        "escala_id": _escala_id(tmp_path, "Diárias por escala"), "hora_inicio_turno": "25:00",
+        "hora_fim_turno": "18:00", "valor_diaria": "210,50", "plantoes_mes": "13",
+        "trajes": "Fardamento padrão da empresa prestadora", "observacoes": "",
+    })
+    assert r.status_code == 200
+    assert 'value="25:00"' in r.text and 'value="210,50"' in r.text and 'value="13"' in r.text
