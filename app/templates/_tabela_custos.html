@@ -1,10 +1,18 @@
+{# Parcial do HTMX: tabela e painel juntos, para o total atualizar com a tabela #}
+<div class="custos-colunas">
+<div class="custos-tabela">
+<div class="tabela-rolagem">
 <table class="custos">
-  <tr><th>Descrição</th><th class="num">Unitário</th><th class="num">Qtd.</th><th class="num">Subtotal</th><th></th></tr>
+  <tr><th>Descrição</th><th>Origem</th><th class="num">Sugerido</th><th class="num">Valor unitário (R$)</th>
+      <th class="num">Qtd.</th><th class="num">Subtotal (R$)</th><th><span class="sr">Ações</span></th></tr>
   {% for l in linhas %}
+  {% set fixa_manual = l.categoria == 'manual' and l.percentual is none %}
   <tr class="{{ 'sobrescrita' if l.sobrescrito }}">
     <td>{{ l.descricao }}{% if l.percentual %} ({{ l.percentual | pct }}){% endif %}
-      {% if l.sobrescrito %}<span class="sugerido">sugerido: {{ l.valor_sugerido_centavos | brl }}</span>{% endif %}
+      {% if l.sobrescrito %}<span class="sugerido">Ajustado à mão</span>{% endif %}
     </td>
+    <td><span class="etiqueta">{{ l | origem }}</span></td>
+    <td class="num sugerido-col">{{ "-" if fixa_manual else (l.valor_sugerido_centavos | brl) }}</td>
     <td class="num">
       <form method="post" action="/propostas/{{ prop.id }}/linhas/{{ l.id }}/valor"
             hx-post="/propostas/{{ prop.id }}/linhas/{{ l.id }}/valor" hx-target="#tabela-custos">
@@ -19,28 +27,49 @@
       {% if l.sobrescrito %}
       <form method="post" action="/propostas/{{ prop.id }}/linhas/{{ l.id }}/restaurar"
             hx-post="/propostas/{{ prop.id }}/linhas/{{ l.id }}/restaurar" hx-target="#tabela-custos">
-        <button class="mini" title="Voltar ao valor sugerido">voltar</button>
+        <button class="mini" title="Voltar ao valor sugerido">voltar ao sugerido</button>
       </form>
       {% endif %}
       {% if l.categoria == 'manual' %}
       <form method="post" action="/propostas/{{ prop.id }}/linhas/{{ l.id }}/remover"
             hx-post="/propostas/{{ prop.id }}/linhas/{{ l.id }}/remover" hx-target="#tabela-custos">
-        <button class="mini" title="Remover linha">x</button>
+        <button class="mini" title="Remover linha">remover</button>
       </form>
       {% endif %}
     </td>
   </tr>
   {% endfor %}
-  <tr><td colspan="3"><strong>Total</strong></td><td class="num"><strong>{{ total | brl }}</strong></td><td></td></tr>
+  <tr class="linha-total"><td colspan="5"><strong>Total</strong></td><td class="num"><strong>{{ total | brl }}</strong></td><td></td></tr>
 </table>
+</div>
 {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
-<form method="post" action="/propostas/{{ prop.id }}/linhas/nova"
+</div>
+
+<aside class="custos-painel">
+  <section class="cartao">
+    <h2>Total da proposta</h2>
+    <p class="painel-total">R$ {{ total | brl }}</p>
+    <dl class="painel-divisao">
+      {% for chave, rotulo in [("mao_de_obra", "Mão de obra"), ("acessorio", "Acessórios"), ("derivada", "Encargos e margem"),
+                                ("manual", "Linhas manuais"), ("percentual", "Percentuais")] %}
+      {% if totais[chave] %}<dt>{{ rotulo }}</dt><dd>{{ totais[chave] | brl }}</dd>{% endif %}
+      {% endfor %}
+    </dl>
+  </section>
+  <section class="cartao">
+    <h2>Adicionar linha</h2>
+    <form method="post" action="/propostas/{{ prop.id }}/linhas/nova"
       hx-post="/propostas/{{ prop.id }}/linhas/nova" hx-target="#tabela-custos">
-  <label>Adicionar linha de custo
+  <label>Descrição
     <input name="descricao" placeholder="Ex.: Operacional, EPIs, material" maxlength="80">
   </label>
-  <label>Valor (R$)
-    <input name="valor" inputmode="decimal" placeholder="0,00" style="width:7.5em">
+  <label>Valor (R$ ou %)
+    <input name="valor" inputmode="decimal" placeholder="1.234,56 ou 5%" style="width:7.5em">
   </label>
   <button class="mini">Adicionar</button>
 </form>
+
+    <p class="sugerido">Com % a linha incide sobre a soma das linhas fixas e recalcula sozinha.</p>
+  </section>
+</aside>
+</div>

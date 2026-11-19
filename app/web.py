@@ -14,4 +14,15 @@ env.filters["brl"] = format_brl
 env.filters["data_br"] = format_data_br
 env.filters["pct"] = format_percentual
 
+
+def origem_linha(linha) -> str:
+    """Quem controla o valor da linha de custo, para a coluna Origem."""
+    if linha["percentual"] is not None:
+        return "Percentual"
+    return {"mao_de_obra": "Mão de obra", "acessorio": "Acessório",
+            "derivada": "Calculado", "manual": "Manual"}[linha["categoria"]]
+
+
+env.filters["origem"] = origem_linha
+
 templates = Jinja2Templates(env=env)

@@ -92,9 +92,9 @@ def test_semanal_exige_dia_ativo(conn):
     rp.atualizar_dados(conn, pid, {"modo_preco": "semanal", "escala_semanal": [],
                                    "hora_inicio_turno": "", "hora_fim_turno": ""})
     itens = _rotulos(conn, pid)
-    item = itens["Pelo menos um dia ativo na escala"]
+    item = itens["Portaria noturna: Pelo menos um dia ativo na escala"]
     assert item.critico and not item.ok
-    assert "Horários do turno definidos" not in itens
+    assert "Portaria noturna: Horários do turno definidos" not in itens
     rp.atualizar_dados(conn, pid, {"escala_semanal": SEMANA})
     assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is True
 
@@ -102,14 +102,87 @@ def test_semanal_exige_dia_ativo(conn):
 def test_diaria_exige_valor_e_dias(conn):
     pid = _completa_continuo(conn)
     rp.atualizar_dados(conn, pid, {"modo_preco": "diaria"})
-    item = _rotulos(conn, pid)["Valor da diária e dias por mês"]
+    item = _rotulos(conn, pid)["Portaria noturna: Valor da diária e dias por mês"]
     assert item.critico and not item.ok
     rp.atualizar_dados(conn, pid, {"valor_diaria_centavos": 20000, "plantoes_mes": "21.67"})
-    assert _rotulos(conn, pid)["Valor da diária e dias por mês"].ok
+    assert _rotulos(conn, pid)["Portaria noturna: Valor da diária e dias por mês"].ok
 
 
 def test_piso_e_legado_mantem_turno(conn):
     pid = _completa_continuo(conn)
     itens = _rotulos(conn, pid)
-    assert "Horários do turno definidos" in itens
-    assert "Pelo menos um dia ativo na escala" not in itens
+    assert "Portaria noturna: Horários do turno definidos" in itens
+    assert "Portaria noturna: Pelo menos um dia ativo na escala" not in itens
+
+
+# ---- estado por etapa (navegação vertical) ----
+from app.routes.propostas import ETAPAS
+
+
+def test_estado_etapas_nova_proposta_sem_pendencia_futura(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    est = checklist.estado_etapas(checklist.avaliar(conn, pid), ETAPAS, "cliente")
+    assert set(est.values()) == {""}
+
+
+def test_estado_etapas_marca_pendencia_anterior(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"formas_pagamento": ""})
+    est = checklist.estado_etapas(checklist.avaliar(conn, pid), ETAPAS, "revisao")
+    assert est["pagamento"] == "pendente" and est["cliente"] == "ok" and est["custos"] == ""
+
+
+def test_estado_etapas_futura_nao_ok_fica_vazia(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"formas_pagamento": ""})
+    est = checklist.estado_etapas(checklist.avaliar(conn, pid), ETAPAS, "servicos")
+    assert est["pagamento"] == "" and est["local"] == "ok"
+
+
+def test_todo_item_tem_etapa(conn):
+    pid = _completa_continuo(conn)
+    assert all(i.etapa in ETAPAS for i in checklist.avaliar(conn, pid))
+
+
+def test_checklist_aceita_sentinelas(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {
+        "endereco_servico": "A informar", "duracao_meses": "A informar", "data_inicio": "A informar",
+        "formas_pagamento": "A combinar", "vencimento": "A combinar"})
+    assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is True
+
+
+# ---- dados de exemplo da empresa ----
+from app import repo_catalogo as rcat
+from tests.conftest import configurar_empresa
+
+ROTULO_EMPRESA = "Dados da empresa configurados (Configurações > Empresa)"
+
+
+def test_bloqueia_emissao_com_dados_de_exemplo(conn):
+    rcat.seed_inicial(conn)
+    pid = _completa_continuo(conn)
+    item = _rotulos(conn, pid)[ROTULO_EMPRESA]
+    assert item.critico and not item.ok and item.etapa == "revisao"
+    assert checklist.pode_emitir(checklist.avaliar(conn, pid)) is False
+
+
+def test_nome_igual_ao_seed_nao_bloqueia(conn):
+    rcat.seed_inicial(conn)
+    configurar_empresa(conn)  # não mexe no nome
+    assert rcat.parametro_vigente(conn, "empresa_nome") == "RS PORTARIA E SERVICOS"
+    pid = _completa_continuo(conn)
+    assert _rotulos(conn, pid)[ROTULO_EMPRESA].ok
+    assert rcat.empresa_com_dados_de_exemplo(conn) == []
+
+
+def test_checklist_por_cartao(conn):
+    pid = _completa_continuo(conn)
+    rp.atualizar_dados(conn, pid, {"funcoes": [
+        {"chave": "a", "funcao_id": None, "nome": "Portaria", "quantidade": 1, "modo_preco": "piso_mensal",
+         "hora_inicio_turno": "07:00", "hora_fim_turno": "19:00"},
+        {"chave": "b", "funcao_id": None, "nome": "Jardineiro", "quantidade": 1, "modo_preco": "semanal",
+         "escala_semanal": []}]})
+    itens = _rotulos(conn, pid)
+    assert itens["Portaria: Horários do turno definidos"].ok
+    assert not itens["Jardineiro: Pelo menos um dia ativo na escala"].ok

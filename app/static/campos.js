@@ -45,7 +45,10 @@
     input.value = isoParaBr(tipo, valor);
     input.setAttribute("data-convertido", "");
     input.addEventListener("input", function () {
-      input.value = mascarar(cfg, input.value);
+      // Data ISO colada (2026-11-17) vira BR antes da máscara, que leria só os dígitos
+      var bruto = input.value.trim();
+      if (tipo === "data" && /^\d{4}-\d{2}-\d{2}$/.test(bruto)) bruto = isoParaBr(tipo, bruto);
+      input.value = mascarar(cfg, bruto);
     });
   }
 
@@ -55,10 +58,36 @@
     for (var i = 0; i < alvos.length; i++) converter(alvos[i]);
   }
 
+  // "A informar" / "A combinar": marcada a opção, o campo fica desabilitado
+  // (não é enviado) e deixa de ser obrigatório; vale em qualquer ponteiro
+  function ligarSentinelas(raiz) {
+    var caixas = raiz.querySelectorAll ? raiz.querySelectorAll("input[data-sentinela-de]") : [];
+    for (var i = 0; i < caixas.length; i++) {
+      (function (caixa) {
+        if (caixa.hasAttribute("data-ligada")) return;
+        caixa.setAttribute("data-ligada", "");
+        var form = caixa.form || document;
+        var alvos = form.querySelectorAll('[name="' + caixa.getAttribute("data-sentinela-de") + '"]');
+        function sincronizar() {
+          for (var j = 0; j < alvos.length; j++) {
+            var alvo = alvos[j];
+            if (alvo.required) alvo.setAttribute("data-obrigatorio", "");
+            alvo.disabled = caixa.checked;
+            alvo.required = !caixa.checked && alvo.hasAttribute("data-obrigatorio");
+          }
+        }
+        caixa.addEventListener("change", sincronizar);
+        sincronizar();
+      })(caixas[i]);
+    }
+  }
+
+  function iniciar(raiz) { aplicar(raiz); ligarSentinelas(raiz); }
+
   // htmx.onLoad roda no carregamento inicial e em cada fragmento trocado
   if (window.htmx) {
-    window.htmx.onLoad(aplicar);
+    window.htmx.onLoad(iniciar);
   } else {
-    document.addEventListener("DOMContentLoaded", function () { aplicar(document); });
+    document.addEventListener("DOMContentLoaded", function () { iniciar(document); });
   }
 })();

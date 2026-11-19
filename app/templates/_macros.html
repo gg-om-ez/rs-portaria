@@ -1,0 +1,7 @@
+{# Opção "A informar" / "A combinar" ao lado de um campo (ver app/sentinelas.py) #}
+{% macro sentinela(campo, rotulo, valor) -%}
+<label class="sentinela"><input type="checkbox" name="{{ campo }}_sentinela" data-sentinela-de="{{ campo }}"{{ " checked" if valor == rotulo }}> {{ rotulo }}</label>
+{%- endmacro %}
+
+{# valor do campo para exibir no input: vazio quando é sentinela #}
+{% macro valor(v) %}{{ "" if v in ("A informar", "A combinar") else (v or "") }}{% endmacro %}

@@ -1,0 +1,9 @@
+<form method="post" action="/propostas/{{ prop.id }}/excluir" class="confirmar-exclusao">
+  <p><strong>Excluir {{ "Rascunho #" ~ prop.id }}?</strong></p>
+  <p>Esta ação não pode ser desfeita.</p>
+  <div class="acoes-etapa">
+    <a href="/propostas/{{ prop.id }}/cliente" class="botao-link secundario"
+       onclick="var d = this.closest('dialog'); if (d) { event.preventDefault(); d.close(); }">Cancelar</a>
+    <button class="perigo">Excluir rascunho</button>
+  </div>
+</form>

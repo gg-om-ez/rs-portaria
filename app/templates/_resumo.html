@@ -1,0 +1,11 @@
+<section class="cartao resumo">
+  <h2>Resumo da proposta</h2>
+  <dl>
+    <dt>Cliente</dt><dd>{{ resumo.cliente or "-" }}</dd>
+    {% if resumo.data %}<dt>{{ "Início" if prop.tipo == "continuo" else "Data" }}</dt><dd>{{ resumo.data | data_br }}</dd>{% endif %}
+    {% if resumo.duracao_meses %}<dt>Duração</dt><dd>{{ resumo.duracao_meses }}{% if resumo.duracao_meses != "A informar" %} meses{% endif %}</dd>{% endif %}
+    {% if resumo.escala_nome %}<dt>Escala</dt><dd>{{ resumo.escala_nome }}</dd>{% endif %}
+    <dt>Profissionais</dt><dd>{{ resumo.profissionais }}</dd>
+  </dl>
+  <p class="resumo-total"><span>Total atual</span><strong>R$ {{ resumo.total_centavos | brl }}</strong></p>
+</section>

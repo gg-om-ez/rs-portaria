@@ -83,3 +83,21 @@ def test_atualizar_escala_rejeita(conn):
         rcat.atualizar_escala(conn, _escala(conn, "5x2")["id"], "semanal", None)
     with pytest.raises(ValueError):
         rcat.atualizar_escala(conn, _escala(conn, "5x2")["id"], "piso_mensal", Decimal("0"))
+
+
+import sqlite3
+
+
+def test_definir_parametros_transacional(conn):
+    rcat.seed_inicial(conn)
+    with pytest.raises(sqlite3.IntegrityError):
+        rcat.definir_parametros(conn, {"pct_encargos": "0.6", None: "x"}, "2026-12-01")
+    assert rcat.parametro_vigente(conn, "pct_encargos", em="2026-12-02") == "0.58"
+
+
+def test_definir_parametros_mesma_vigencia(conn):
+    rcat.seed_inicial(conn)
+    rcat.definir_parametros(conn, {"pct_encargos": "0.6", "pct_margem": "0.12"}, "2026-12-01")
+    for chave, valor in [("pct_encargos", "0.6"), ("pct_margem", "0.12")]:
+        row = rcat.vigencia_atual(conn, chave, em="2026-12-01")
+        assert (row["valor"], row["vigencia_inicio"]) == (valor, "2026-12-01")

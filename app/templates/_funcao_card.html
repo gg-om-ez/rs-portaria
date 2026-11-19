@@ -1,0 +1,64 @@
+{# Cartão de uma função na etapa Serviços (contínuo). Trocar função ou escala
+   refaz só este cartão: hx-get com os campos dele, troca outerHTML #}
+{% set p = c.p %}
+<section class="cartao funcao-card" data-chave="{{ c.chave }}">
+  <input type="hidden" name="funcao" value="{{ c.chave }}">
+  <div class="funcao-topo">
+    <label>Função <select name="{{ p }}funcao"
+        hx-get="/propostas/{{ prop.id }}/servicos/funcao?chave={{ c.chave | urlencode }}"
+        hx-include="closest .funcao-card" hx-target="closest .funcao-card" hx-swap="outerHTML">
+      {% if c.funcao_extra %}
+      <option value="{{ c.funcao_extra.id }}" selected>{{ c.funcao_extra.nome }} (inativa)</option>
+      {% endif %}
+      {% for f in funcoes %}
+      <option value="{{ f.id }}"{{ " selected" if c.funcao_sel == f.id | string }}>{{ f.nome }}</option>
+      {% endfor %}
+      <option value="personalizada"{{ " selected" if c.funcao_sel == "personalizada" }}>Personalizada...</option>
+    </select></label>
+    {% if c.funcao_sel == "personalizada" %}
+    <label>Nome da função <input name="{{ p }}nome" value="{{ c.nome }}" placeholder="Ex.: Jardineiro"></label>
+    {% endif %}
+    <label class="funcao-qtd">Profissionais <input name="{{ p }}qtd" inputmode="numeric" value="{{ c.qtd }}" placeholder="1"></label>
+    <label>Escala <select name="{{ p }}escala_id"
+        hx-get="/propostas/{{ prop.id }}/servicos/funcao?chave={{ c.chave | urlencode }}"
+        hx-vals='{"troca_escala": "1"}'
+        hx-include="closest .funcao-card" hx-target="closest .funcao-card" hx-swap="outerHTML">
+      {% for e in escalas %}
+      <option value="{{ e.id }}"{{ " selected" if e.id == c.escala.id }}>{{ e.nome }}</option>
+      {% endfor %}
+    </select></label>
+    <button type="button" class="mini funcao-remover" onclick="this.closest('.funcao-card').remove()"
+            aria-label="Remover esta função">Remover</button>
+  </div>
+
+  {% if c.escala.modo == "semanal" %}
+    <p class="sugerido">Marque os dias trabalhados e informe o horário e o valor da diária de cada um.</p>
+    <div class="tabela-rolagem">
+    <table class="custos tabela-semana">
+      <tr><th>Dia</th><th>Início</th><th>Fim</th><th class="num">Valor do dia (R$)</th></tr>
+      {% for chave, rotulo in dias_semana %}{% set d = c.dias[chave] %}
+      <tr>
+        <td><label style="font-weight:600;margin:0">
+          <input type="checkbox" name="{{ p }}dia_{{ chave }}_ativo" style="width:auto" {{ 'checked' if d.ativo }}> {{ rotulo }}</label></td>
+        <td><input name="{{ p }}dia_{{ chave }}_inicio" type="time" data-campo="hora" value="{{ d.inicio }}" placeholder="HH:MM" aria-label="Início {{ rotulo }}"></td>
+        <td><input name="{{ p }}dia_{{ chave }}_fim" type="time" data-campo="hora" value="{{ d.fim }}" placeholder="HH:MM" aria-label="Fim {{ rotulo }}"></td>
+        <td class="num"><input name="{{ p }}dia_{{ chave }}_valor" inputmode="decimal" value="{{ d.valor }}" placeholder="0,00" aria-label="Valor {{ rotulo }}"></td>
+      </tr>
+      {% endfor %}
+    </table>
+    </div>
+  {% else %}
+    <div class="funcao-campos">
+      <label>Início do turno <input name="{{ p }}hora_inicio_turno" type="time" data-campo="hora" value="{{ c.valores.hora_inicio_turno }}" placeholder="HH:MM"></label>
+      <label>Fim do turno <input name="{{ p }}hora_fim_turno" type="time" data-campo="hora" value="{{ c.valores.hora_fim_turno }}" placeholder="HH:MM"></label>
+      {% if c.escala.modo == "diaria" %}
+      <label>Diária por profissional (R$) <input name="{{ p }}valor_diaria" inputmode="decimal" value="{{ c.valores.valor_diaria }}" placeholder="0,00"></label>
+      {% endif %}
+      {% if c.escala.modo == "piso_mensal" and c.funcao_sel == "personalizada" %}
+      <label>Piso mensal (R$) <input name="{{ p }}piso" inputmode="decimal" value="{{ c.piso }}" placeholder="0,00"></label>
+      {% endif %}
+      <label>Dias trabalhados por mês <input name="{{ p }}plantoes_mes" inputmode="decimal" value="{{ c.dias_mes | replace('.', ',') }}" placeholder="Ex.: 15"></label>
+    </div>
+  {% endif %}
+  {% if c.erro %}<p class="erro">{{ c.erro }}</p>{% endif %}
+</section>

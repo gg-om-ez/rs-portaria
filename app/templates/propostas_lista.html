@@ -1,24 +1,58 @@
 {% extends "base.html" %}
 {% block conteudo %}
-<h1>Propostas</h1>
-<form method="get" action="/propostas" class="busca">
-  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente ou número">
-  <button>Buscar</button>
+<div class="lista-topo">
+  <h1>Propostas</h1>
+  <form method="post" action="/propostas/nova" class="acoes-nova">
+    <button name="tipo" value="continuo">Nova: serviço contínuo</button>
+    <button name="tipo" value="evento" class="secundario">Nova: evento único</button>
+  </form>
+</div>
+
+<form method="get" action="/propostas" class="cartao filtros" role="search">
+  <label class="filtro-busca">Buscar
+    <input type="search" name="q" value="{{ q }}" placeholder="Cliente ou número (RS-2026-...)"></label>
+  <label>Status <select name="status">
+    {% for v, r in [("", "Todos"), ("rascunho", "Rascunho"), ("emitida", "Emitida")] %}
+    <option value="{{ v }}"{{ " selected" if status == v }}>{{ r }}</option>{% endfor %}
+  </select></label>
+  <label>Tipo <select name="tipo">
+    {% for v, r in [("", "Todos"), ("continuo", "Serviço contínuo"), ("evento", "Evento único")] %}
+    <option value="{{ v }}"{{ " selected" if tipo == v }}>{{ r }}</option>{% endfor %}
+  </select></label>
+  <button>Filtrar</button>
 </form>
-<ul class="lista">
+
+{% if nao_arquivadas %}
+<div class="aviso" role="status">
+  <span>{{ nao_arquivadas }} proposta{{ "s" if nao_arquivadas > 1 }} emitida{{ "s" if nao_arquivadas > 1 }} sem cópia na pasta de arquivo.</span>
+  <form method="post" action="/rearquivar"><button class="secundario">Regravar cópias não arquivadas</button></form>
+</div>
+{% endif %}
+
+<div class="tabela-rolagem">
+<table class="custos tabela-lista">
+  <tr><th>Número</th><th>Cliente</th><th>Tipo</th><th>Escala</th><th class="num">Total (R$)</th>
+      <th>Criada em</th><th>Status</th><th><span class="sr">Ações</span></th></tr>
   {% for p in propostas %}
-  <li>
-    <a href="/propostas/{{ p.id }}/{{ 'emitida' if p.status == 'emitida' else 'cliente' }}">
-      <strong>{{ p.numero or "Rascunho #" ~ p.id }}</strong>
-      {{ p.razao_social or "(sem cliente)" }} - {{ p.tipo }}
-      <span class="etiqueta {{ p.status }}">{{ p.status }}</span>
-      {% if p.status == 'emitida' and not p.pdf_arquivado %}<span class="etiqueta alerta">cópia não arquivada</span>{% endif %}
-    </a>
-    <form method="post" action="/propostas/{{ p.id }}/duplicar"><button class="mini">Duplicar</button></form>
-  </li>
+  {% set destino = "emitida" if p.status == "emitida" else "cliente" %}
+  <tr>
+    <td><a href="/propostas/{{ p.id }}/{{ destino }}"><strong>{{ p.numero or "Rascunho #" ~ p.id }}</strong></a></td>
+    <td>{{ p.razao_social or "(sem cliente)" }}</td>
+    <td>{{ "Contínuo" if p.tipo == "continuo" else "Evento" }}</td>
+    <td>{{ (p.escala_nome or "12x36") if p.tipo == "continuo" else "-" }}</td>
+    <td class="num">{{ p.total_centavos | brl }}</td>
+    <td>{{ p.criado_em | data_br }}</td>
+    <td><span class="etiqueta {{ p.status }}">{{ p.status }}</span>
+      {% if p.status == "emitida" and not p.pdf_arquivado %}<span class="etiqueta alerta">sem cópia arquivada</span>{% endif %}</td>
+    <td class="acoes-linha">
+      {% if p.status == "emitida" %}<a href="/propostas/{{ p.id }}/pdf">Baixar PDF</a>
+      {% else %}<a href="/propostas/{{ p.id }}/cliente">Continuar</a>{% endif %}
+      <form method="post" action="/propostas/{{ p.id }}/duplicar"><button class="mini">Duplicar</button></form>
+    </td>
+  </tr>
   {% else %}
-  <li class="vazio">Nada encontrado.</li>
+  <tr><td colspan="8" class="vazio">Nada encontrado.</td></tr>
   {% endfor %}
-</ul>
-<form method="post" action="/rearquivar"><button class="secundario">Regravar cópias não arquivadas</button></form>
+</table>
+</div>
 {% endblock %}

@@ -3,6 +3,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from app import escalas
+from app import repo_catalogo as rcat
 from app import repo_clientes as rc
 from app import repo_propostas as rp
 
@@ -12,6 +13,7 @@ class ItemChecklist:
     rotulo: str
     ok: bool
     critico: bool
+    etapa: str  # etapa do wizard onde o item se resolve (navegação vertical)
 
 
 def _tem(dados: dict, chave: str) -> bool:
@@ -30,39 +32,67 @@ def avaliar(conn: sqlite3.Connection, pid: int) -> list[ItemChecklist]:
 
     itens = [
         ItemChecklist("Cliente definido com CNPJ válido",
-                      cliente is not None and rc.validar_cnpj(cliente["cnpj"]), True),
-        ItemChecklist("Endereço do serviço informado", _tem(dados, "endereco_servico"), True),
-        ItemChecklist("Pelo menos uma função de mão de obra", tem_mao_de_obra, True),
-        ItemChecklist("Forma de pagamento definida", _tem(dados, "formas_pagamento"), True),
+                      cliente is not None and rc.validar_cnpj(cliente["cnpj"]), True, "cliente"),
+        ItemChecklist("Endereço do serviço informado", _tem(dados, "endereco_servico"), True, "local"),
+        ItemChecklist("Pelo menos uma função de mão de obra", tem_mao_de_obra, True, "servicos"),
+        ItemChecklist("Forma de pagamento definida", _tem(dados, "formas_pagamento"), True, "pagamento"),
     ]
     if prop["tipo"] == "continuo":
-        modo = escalas.modo_de(dados)
         itens.append(ItemChecklist("Duração do contrato e data de início",
-                                   _tem(dados, "duracao_meses") and _tem(dados, "data_inicio"), True))
-        if modo == "semanal":
-            # Personalizado: horários ficam em cada dia ativo, não num turno único
-            itens.append(ItemChecklist("Pelo menos um dia ativo na escala",
-                                       bool(dados.get("escala_semanal")), True))
-        else:
-            itens.append(ItemChecklist(
-                "Horários do turno definidos",
-                _tem(dados, "hora_inicio_turno") and _tem(dados, "hora_fim_turno"), True))
-        if modo == "diaria":
-            itens.append(ItemChecklist(
-                "Valor da diária e dias por mês",
-                bool(dados.get("valor_diaria_centavos")) and _tem(dados, "plantoes_mes"), True))
-        itens.append(ItemChecklist("Vencimento acordado", _tem(dados, "vencimento"), True))
+                                   _tem(dados, "duracao_meses") and _tem(dados, "data_inicio"), True,
+                                   "local"))
+        # Um conjunto de itens por cartão de função, cada um com a sua escala
+        for f in escalas.funcoes_da_proposta(dados, linhas):
+            nome, modo = f["nome"], escalas.modo_de(f)
+            if modo == "semanal":
+                # Personalizado: horários ficam em cada dia ativo, não num turno único
+                itens.append(ItemChecklist(f"{nome}: Pelo menos um dia ativo na escala",
+                                           bool(f.get("escala_semanal")), True, "servicos"))
+            else:
+                itens.append(ItemChecklist(
+                    f"{nome}: Horários do turno definidos",
+                    _tem(f, "hora_inicio_turno") and _tem(f, "hora_fim_turno"), True, "servicos"))
+            if modo == "diaria":
+                itens.append(ItemChecklist(
+                    f"{nome}: Valor da diária e dias por mês",
+                    bool(f.get("valor_diaria_centavos")) and _tem(f, "plantoes_mes"), True,
+                    "servicos"))
+        itens.append(ItemChecklist("Vencimento acordado", _tem(dados, "vencimento"), True, "pagamento"))
     else:
         itens += [
-            ItemChecklist("Data do evento definida", _tem(dados, "data_evento"), True),
+            ItemChecklist("Data do evento definida", _tem(dados, "data_evento"), True, "local"),
             ItemChecklist("Horários de início e término",
-                          _tem(dados, "hora_inicio") and _tem(dados, "hora_fim"), True),
+                          _tem(dados, "hora_inicio") and _tem(dados, "hora_fim"), True, "local"),
             ItemChecklist("Data-limite do pagamento antecipado",
-                          _tem(dados, "data_limite_pagamento"), True),
+                          _tem(dados, "data_limite_pagamento"), True, "pagamento"),
         ]
-    itens.append(ItemChecklist("Observações preenchidas", _tem(dados, "observacoes"), False))
+    itens.append(ItemChecklist("Observações preenchidas", _tem(dados, "observacoes"), False, "servicos"))
+    # Bloqueia PDF com CNPJ, PIX etc. de exemplo (instância nunca configurada)
+    itens.append(ItemChecklist("Dados da empresa configurados (Configurações > Empresa)",
+                               not rcat.empresa_com_dados_de_exemplo(conn), True, "revisao"))
     return itens
 
 
 def pode_emitir(itens: list[ItemChecklist]) -> bool:
     return all(i.ok for i in itens if i.critico)
+
+
+def estado_etapas(itens: list[ItemChecklist], etapas: list[str], atual: str) -> dict[str, str]:
+    """Estado de cada etapa para a navegação: "ok" quando todos os itens críticos
+    dela passam; "pendente" quando algum falha numa etapa já percorrida (ou na
+    revisão, que mostra tudo); "" sem itens ou etapa futura ainda incompleta, para
+    uma proposta nova não aparecer toda pendente."""
+    idx_atual = etapas.index(atual)
+    estados = {}
+    for idx, etapa in enumerate(etapas):
+        criticos = [i for i in itens if i.critico and i.etapa == etapa]
+        # a Revisão já mostra o checklist inteiro; marca própria só confundiria
+        if not criticos or etapa == "revisao":
+            estados[etapa] = ""
+        elif all(i.ok for i in criticos):
+            estados[etapa] = "ok"
+        elif idx < idx_atual or atual == "revisao":
+            estados[etapa] = "pendente"
+        else:
+            estados[etapa] = ""
+    return estados

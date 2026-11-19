@@ -268,3 +268,115 @@ def test_trocar_para_semanal_remove_e_voltar_para_piso_recria(conn):
     rp.recalcular_derivadas(conn, pid, PARAMS)
     descricoes = {l["descricao"] for l in rp.linhas_da_proposta(conn, pid)}
     assert {"Alimentação", "Transporte", "Encargos sociais", "Margem administrativa"} <= descricoes
+
+
+# ---- lista com total, escala e filtros ----
+from app import repo_clientes as rc
+
+
+def _duas_propostas(conn):
+    c1 = rc.criar_cliente(conn, "Cliente Exemplo Ltda", "11.222.333/0001-81", "Av. Exemplo, 1000")
+    c2 = rc.criar_cliente(conn, "Empresa XYZ", "11.444.777/0001-61", "Rua X, 1")
+    a = rp.criar_proposta(conn, "continuo")
+    rp.definir_cliente(conn, a, c1)
+    rp.atualizar_dados(conn, a, {"escala_nome": "5x2"})
+    rp.inserir_linha(conn, a, "Portaria", "mao_de_obra", 2, 100000)
+    b = rp.criar_proposta(conn, "evento")
+    rp.definir_cliente(conn, b, c2)
+    conn.execute("UPDATE propostas SET status = 'emitida', pdf_arquivado = 0 WHERE id = ?", (b,))
+    conn.commit()
+    return a, b
+
+
+def test_listar_traz_total_e_escala(conn):
+    a, b = _duas_propostas(conn)
+    rows = {r["id"]: r for r in rp.listar_propostas(conn)}
+    assert rows[a]["total_centavos"] == 200000 and rows[a]["escala_nome"] == "5x2"
+    assert rows[b]["total_centavos"] == 0 and rows[b]["escala_nome"] is None
+
+
+def test_listar_filtra_status_tipo_e_busca_juntos(conn):
+    a, b = _duas_propostas(conn)
+    assert [r["id"] for r in rp.listar_propostas(conn, "exemplo", status="rascunho", tipo="continuo")] == [a]
+    assert rp.listar_propostas(conn, "exemplo", status="emitida") == []
+    assert [r["id"] for r in rp.listar_propostas(conn, tipo="evento")] == [b]
+    assert len(rp.listar_propostas(conn, status="invalido", tipo="xyz")) == 2
+
+
+def test_contar_nao_arquivadas(conn):
+    _duas_propostas(conn)
+    assert rp.contar_nao_arquivadas(conn) == 1
+
+
+def test_totais_por_origem(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.atualizar_dados(conn, pid, {"modo_preco": "semanal"})
+    rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 100000)
+    rp.inserir_linha(conn, pid, "Operacional", "manual", 1, 10000)
+    rp.inserir_linha(conn, pid, "ISS", "manual", 1, 0, percentual=Decimal("0.05"))
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    assert rp.totais_por_origem(conn, pid) == {
+        "mao_de_obra": 100000, "acessorio": 0, "derivada": 0, "manual": 10000, "percentual": 5500}
+
+
+# ---- escala por função: motor por linha ----
+def test_proposta_mista_motor_so_sobre_piso(conn):
+    rcat.seed_inicial(conn)
+    params = rcat.params_vigentes(conn)
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Portaria - 12x36", "mao_de_obra", 1, 160000,
+                     chave_funcao="a1", modo_preco="piso_mensal")
+    rp.inserir_linha(conn, pid, "Jardineiro - Diárias", "mao_de_obra", 1, 433400,
+                     chave_funcao="b2", modo_preco="diaria")
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, params)
+    linhas = {l["descricao"]: l for l in rp.linhas_da_proposta(conn, pid)}
+    assert linhas["Alimentação"]["quantidade"] == 1 and linhas["Transporte"]["quantidade"] == 1
+    assert linhas["Encargos sociais"]["valor_final_centavos"] == 92800
+    assert linhas["Margem administrativa"]["valor_final_centavos"] == 32880
+    assert rp.total_proposta(conn, pid) == 795080
+
+
+def test_so_diaria_sem_acessorios_nem_derivadas(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Jardineiro", "mao_de_obra", 2, 65000, chave_funcao="x", modo_preco="semanal")
+    rp.sincronizar_acessorios(conn, pid, valor_alimentacao=58000, valor_transporte=18000)
+    rp.recalcular_derivadas(conn, pid, PARAMS)
+    assert {l["categoria"] for l in rp.linhas_da_proposta(conn, pid)} == {"mao_de_obra"}
+
+
+def test_atualizar_linha_mao_de_obra_grava_descricao_e_modo(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    lid = rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 160000)
+    rp.atualizar_linha_mao_de_obra(conn, lid, 2, 170000, descricao="Portaria - 6x1",
+                                   modo_preco="piso_mensal", chave_funcao="k1")
+    l = rp.linhas_da_proposta(conn, pid)[0]
+    assert (l["quantidade"], l["descricao"], l["modo_preco"], l["chave_funcao"]) == (
+        2, "Portaria - 6x1", "piso_mensal", "k1")
+
+
+def test_listar_escalas_de_varias_funcoes(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.atualizar_dados(conn, pid, {"funcoes": [{"chave": "a", "escala_nome": "12x36"},
+                                               {"chave": "b", "escala_nome": "Personalizado"},
+                                               {"chave": "c", "escala_nome": "12x36"}]})
+    row = [r for r in rp.listar_propostas(conn) if r["id"] == pid][0]
+    assert sorted(row["escala_nome"].split(" + ")) == ["12x36", "Personalizado"]
+
+
+# ---- exclusão de rascunho ----
+def test_excluir_rascunho_apaga_proposta_e_linhas(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    rp.inserir_linha(conn, pid, "Portaria", "mao_de_obra", 1, 160000)
+    rp.excluir_rascunho(conn, pid)
+    assert rp.obter_proposta(conn, pid) is None
+    assert conn.execute("SELECT COUNT(*) FROM linhas_custo WHERE proposta_id=?", (pid,)).fetchone()[0] == 0
+
+
+def test_excluir_emitida_e_recusado(conn):
+    pid = rp.criar_proposta(conn, "continuo")
+    conn.execute("UPDATE propostas SET status='emitida', numero='RS-2026-0001' WHERE id=?", (pid,))
+    conn.commit()
+    with pytest.raises(RuntimeError):
+        rp.excluir_rascunho(conn, pid)
+    assert rp.obter_proposta(conn, pid) is not None

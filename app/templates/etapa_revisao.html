@@ -1,20 +1,34 @@
-{% extends "base.html" %}
-{% block conteudo %}
-{% include "_passos.html" %}
+{% extends "_wizard.html" %}
+{% block etapa_conteudo %}
 <h1>Revisão final</h1>
-<ul class="lista">
-  {% for i in itens %}
-  <li class="{{ 'check-ok' if i.ok else 'check-falha' }}">
-    {{ i.rotulo }}{% if not i.critico %} <small>(opcional)</small>{% endif %}
-  </li>
-  {% endfor %}
-</ul>
-<p><strong>Total da proposta: R$ {{ total | brl }}</strong></p>
-{% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
-<iframe class="preview" src="/propostas/{{ prop.id }}/preview" title="Prévia do documento"></iframe>
-{% if pode %}
-<form method="post" action="/propostas/{{ prop.id }}/emitir"><button>Emitir PDF</button></form>
-{% else %}
-<p class="erro">Resolva os itens críticos (X) para poder emitir.</p>
-{% endif %}
+<div class="revisao-colunas">
+  <div class="revisao-checklist">
+    <section class="cartao">
+      <h2>Checklist</h2>
+      <ul class="lista">
+        {% for i in itens %}
+        <li class="{{ 'check-ok' if i.ok else 'check-falha' }}">
+          {{ i.rotulo }}{% if not i.critico %} <small>(opcional)</small>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section class="cartao">
+      <h2>Total da proposta</h2>
+      <p class="painel-total">R$ {{ total | brl }}</p>
+      {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
+      {% if pode %}
+      <p class="sugerido">Ao emitir, a proposta recebe o número RS e deixa de ser editável. Para mudar depois, duplique.</p>
+      <form method="post" action="/propostas/{{ prop.id }}/emitir"><button>Emitir PDF</button></form>
+      {% else %}
+      <p class="erro">Resolva os itens críticos (X) para poder emitir.</p>
+      {% endif %}
+    </section>
+  </div>
+  <section class="revisao-previa">
+    <div class="previa-topo"><h2>Prévia do documento</h2>
+      <a href="/propostas/{{ prop.id }}/preview" target="_blank" rel="noopener">Abrir prévia em nova aba</a></div>
+    <iframe class="preview" src="/propostas/{{ prop.id }}/preview" title="Prévia do documento"></iframe>
+  </section>
+</div>
 {% endblock %}

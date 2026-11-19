@@ -1,17 +1,20 @@
 <style>
+  /* Cores do documento só aqui: o rebranding troca este bloco e o logo (pdf.LOGO) */
+  :root { --doc-texto: #222; --doc-titulo: #1a1a1a; --doc-forte: #000; --doc-marca: #6abf4b;
+          --doc-borda: #999; --doc-cabecalho: #eef5ea; --doc-total: #f5f5f5; --doc-nota: #555; }
   @page { size: A4; margin: 2.2cm 1.8cm; }
-  body { font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; color: #222; line-height: 1.45; }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 10.5pt; color: var(--doc-texto); line-height: 1.45; }
   .logo { display: block; margin: 0 auto 8mm; height: 30mm; }
   h1 { text-align: center; font-size: 14pt; margin: 0 0 8mm; }
-  h2 { font-size: 12pt; color: #1a1a1a; border-bottom: 2px solid #6abf4b; padding-bottom: 1mm; margin: 7mm 0 3mm; }
+  h2 { font-size: 12pt; color: var(--doc-titulo); border-bottom: 2px solid var(--doc-marca); padding-bottom: 1mm; margin: 7mm 0 3mm; }
   .partes p { margin: 0.6mm 0; }
-  .partes strong { color: #000; }
+  .partes strong { color: var(--doc-forte); }
   table { width: 100%; border-collapse: collapse; margin: 3mm 0; }
-  th, td { border: 1px solid #999; padding: 2mm; text-align: left; font-size: 10pt; }
-  th { background: #eef5ea; }
+  th, td { border: 1px solid var(--doc-borda); padding: 2mm; text-align: left; font-size: 10pt; }
+  th { background: var(--doc-cabecalho); }
   td.num, th.num { text-align: right; }
-  tr.total td { font-weight: bold; background: #f5f5f5; }
-  .nota { font-size: 8.5pt; color: #555; }
+  tr.total td { font-weight: bold; background: var(--doc-total); }
+  .nota { font-size: 8.5pt; color: var(--doc-nota); }
   ul { margin: 1mm 0 0 5mm; padding: 0; }
   li { margin-bottom: 1.5mm; }
 </style>
@@ -37,7 +40,7 @@
   {% if s.tipo == "continuo" %}
     {% if s.dados.descricao_local %}<li><strong>Descrição:</strong> {{ s.dados.descricao_local }}</li>{% endif %}
     <li><strong>Local do serviço:</strong> {{ s.dados.endereco_servico }}</li>
-    <li><strong>Duração:</strong> {{ s.dados.duracao_meses }} meses - início previsto em {{ s.dados.data_inicio | data_br }}, com possibilidade de renovação durante contrato vigente.</li>
+    <li><strong>Duração:</strong> {{ s.dados.duracao_meses }}{% if s.dados.duracao_meses != "A informar" %} meses{% endif %} - início previsto em {{ s.dados.data_inicio | data_br }}, com possibilidade de renovação durante contrato vigente.</li>
   {% else %}
     {% if s.dados.nome_evento %}<li><strong>Evento:</strong> {{ s.dados.nome_evento }}</li>{% endif %}
     <li><strong>Local do evento:</strong> {{ s.dados.endereco_servico }}</li>
@@ -47,14 +50,20 @@
 
 <h2>2. DESCRIÇÃO DOS SERVIÇOS</h2>
 <ul>
+  {% if s.escalas %}
+    {% for e in s.escalas %}
+    <li><strong>{{ e.funcao }}</strong> - {{ e.quantidade }} profissiona{{ "is" if e.quantidade != 1 else "l" }} - Escala {{ e.nome }}{% if e.turno %} - turno das {{ e.turno }}{% endif %}{% if e.modo == "diaria" %} - diária de R$ {{ e.diaria_centavos | brl }}, {{ e.dias_mes }} dias trabalhados/mês{% endif %}</li>
+    {% endfor %}
+  {% else %}
   {% if s.tipo == "continuo" %}
-    {# snapshot anterior às escalas não tem s.escala: cai no turno único #}
-    {% if s.escala %}<li><strong>Escala:</strong> {{ s.escala.nome }}</li>{% endif %}
-    {% if not s.escala or s.escala.modo != "semanal" %}
-    <li><strong>Turno de trabalho:</strong> das {{ s.dados.hora_inicio_turno }} às {{ s.dados.hora_fim_turno }}</li>
-    {% endif %}
-    {% if s.escala and s.escala.modo == "diaria" %}
-    <li><strong>Diária:</strong> R$ {{ s.dados.valor_diaria_centavos | brl }} por profissional - {{ s.dados.plantoes_mes | replace(".", ",") }} dias trabalhados/mês</li>
+      {# snapshot anterior às escalas não tem s.escala: cai no turno único #}
+      {% if s.escala %}<li><strong>Escala:</strong> {{ s.escala.nome }}</li>{% endif %}
+      {% if not s.escala or s.escala.modo != "semanal" %}
+      <li><strong>Turno de trabalho:</strong> das {{ s.dados.hora_inicio_turno }} às {{ s.dados.hora_fim_turno }}</li>
+      {% endif %}
+      {% if s.escala and s.escala.modo == "diaria" %}
+      <li><strong>Diária:</strong> R$ {{ s.dados.valor_diaria_centavos | brl }} por profissional - {{ s.dados.plantoes_mes | replace(".", ",") }} dias trabalhados/mês</li>
+      {% endif %}
     {% endif %}
   {% endif %}
   {% if s.dados.trajes %}<li><strong>Trajes:</strong> {{ s.dados.trajes }}</li>{% endif %}
@@ -62,6 +71,17 @@
   {% if s.dados.observacoes %}<li><strong>Observações:</strong> {{ s.dados.observacoes }}</li>{% endif %}
 </ul>
 
+{% for e in s.escalas or [] %}{% if e.modo == "semanal" %}
+<table>
+  <tr><th>{{ e.funcao }} - dia</th><th>Horário</th><th class="num">Valor por profissional (R$)</th></tr>
+  {% for d in e.dias %}
+  <tr><td>{{ d.rotulo }}</td><td>{{ d.inicio }} às {{ d.fim }}</td><td class="num">{{ d.valor_centavos | brl }}</td></tr>
+  {% endfor %}
+  <tr class="total"><td>Total semanal</td><td></td><td class="num">{{ e.semanal_centavos | brl }}</td></tr>
+  <tr><td>Mensal estimado (52/12 semanas)</td><td></td><td class="num">{{ e.mensal_centavos | brl }}</td></tr>
+</table>
+{% endif %}{% endfor %}
+{# snapshot anterior à escala por função: uma escala só, em s.escala #}
 {% if s.escala and s.escala.modo == "semanal" %}
 <table>
   <tr><th>Dia</th><th>Horário</th><th class="num">Valor por profissional (R$)</th></tr>

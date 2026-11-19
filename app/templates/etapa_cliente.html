@@ -1,6 +1,5 @@
-{% extends "base.html" %}
-{% block conteudo %}
-{% include "_passos.html" %}
+{% extends "_wizard.html" %}
+{% block etapa_conteudo %}
 <h1>Cliente</h1>
 
 <form method="get" action="/propostas/{{ prop.id }}/cliente" class="busca">
@@ -21,11 +20,11 @@
 
 <h2>Ou cadastrar novo</h2>
 <form method="post" action="/propostas/{{ prop.id }}/cliente/novo" class="cartao">
-  <label>Razão social <input name="razao_social" required></label>
+  <label>Razão social <input name="razao_social" placeholder="Ex.: Condomínio Exemplo" required></label>
   <label>CNPJ <input name="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" required></label>
-  <label>Endereço completo <input name="endereco" required></label>
-  <label>E-mail <input name="email" type="email"></label>
-  <label>Telefone/WhatsApp <input name="telefone"></label>
+  <label>Endereço completo <input name="endereco" placeholder="Ex.: Rua Exemplo, 100 - Bairro, Cidade - UF" required></label>
+  <label>E-mail <input name="email" type="email" placeholder="contato@cliente.com.br"></label>
+  <label>Telefone/WhatsApp <input name="telefone" placeholder="(00) 00000-0000"></label>
   {% if erro %}<p class="erro">{{ erro }}</p>{% endif %}
   <button>Salvar e continuar</button>
 </form>

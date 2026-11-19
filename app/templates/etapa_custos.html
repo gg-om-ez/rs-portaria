@@ -1,9 +1,10 @@
-{% extends "base.html" %}
-{% block conteudo %}
-{% include "_passos.html" %}
+{% extends "_wizard.html" %}
+{% block etapa_conteudo %}
 <h1>Composição de custos</h1>
-<p>Toque no valor para ajustar. Linhas alteradas ficam destacadas; o total é sempre a soma.</p>
+<p>Clique no valor para ajustar. Linha ajustada fica destacada e a coluna Sugerido mostra o valor calculado; o total é sempre a soma.</p>
 <div id="tabela-custos">{% include "_tabela_custos.html" %}</div>
-<a href="/propostas/{{ prop.id }}/servicos"><button class="secundario" type="button">Voltar aos serviços</button></a>
-<a href="/propostas/{{ prop.id }}/pagamento"><button type="button">Continuar para pagamento</button></a>
+<div class="acoes-etapa">
+  <a href="/propostas/{{ prop.id }}/servicos"><button class="secundario" type="button">Voltar aos serviços</button></a>
+  <a href="/propostas/{{ prop.id }}/pagamento"><button type="button">Continuar para pagamento</button></a>
+</div>
 {% endblock %}

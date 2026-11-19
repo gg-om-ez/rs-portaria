@@ -4,7 +4,7 @@ import sqlite3
 from decimal import Decimal
 
 from app.calc import Params, aplicar_percentual, encargos_centavos, margem_centavos
-from app.escalas import usa_motor_completo
+from app.escalas import modo_da_linha
 
 _ORDEM = {"mao_de_obra": 1, "acessorio": 2, "derivada": 3, "manual": 4}
 
@@ -49,16 +49,39 @@ def definir_cliente(conn: sqlite3.Connection, pid: int, cliente_id: int) -> None
     conn.commit()
 
 
-def listar_propostas(conn: sqlite3.Connection, termo: str = "") -> list[sqlite3.Row]:
+_STATUS_FILTRO = {"", "rascunho", "emitida"}
+_TIPOS_FILTRO = {"", "continuo", "evento"}
+
+
+def listar_propostas(conn: sqlite3.Connection, termo: str = "", status: str = "",
+                     tipo: str = "") -> list[sqlite3.Row]:
+    """Propostas com total (soma das linhas) e nome da escala; filtro fora do
+    conjunto conhecido é ignorado."""
+    status = status if status in _STATUS_FILTRO else ""
+    tipo = tipo if tipo in _TIPOS_FILTRO else ""
     like = f"%{termo.strip()}%"
     return conn.execute(
-        "SELECT p.*, c.razao_social FROM propostas p"
+        "SELECT p.*, c.razao_social,"
+        " COALESCE(SUM(l.valor_final_centavos * l.quantidade), 0) AS total_centavos,"
+        # escalas distintas dos cartões de função; rascunho antigo usa a da proposta
+        " COALESCE((SELECT group_concat(nome, ' + ') FROM (SELECT DISTINCT"
+        "   json_extract(value, '$.escala_nome') AS nome FROM json_each(p.dados_json, '$.funcoes'))),"
+        "  json_extract(p.dados_json, '$.escala_nome')) AS escala_nome"
+        " FROM propostas p"
         " LEFT JOIN clientes c ON c.id = p.cliente_id"
-        " WHERE c.razao_social LIKE ? COLLATE NOCASE OR IFNULL(p.numero, '') LIKE ?"
-        "    OR ? = '%%'"
-        " ORDER BY p.id DESC",
-        (like, like, like),
+        " LEFT JOIN linhas_custo l ON l.proposta_id = p.id"
+        " WHERE (c.razao_social LIKE ? COLLATE NOCASE OR IFNULL(p.numero, '') LIKE ?"
+        "        OR ? = '%%')"
+        "   AND (? = '' OR p.status = ?) AND (? = '' OR p.tipo = ?)"
+        " GROUP BY p.id ORDER BY p.id DESC",
+        (like, like, like, status, status, tipo, tipo),
     ).fetchall()
+
+
+def contar_nao_arquivadas(conn: sqlite3.Connection) -> int:
+    return conn.execute(
+        "SELECT COUNT(*) FROM propostas WHERE status = 'emitida' AND pdf_arquivado = 0"
+    ).fetchone()[0]
 
 
 def inserir_linha(
@@ -70,15 +93,17 @@ def inserir_linha(
     valor_sugerido_centavos: int,
     funcao_id: int | None = None,
     percentual: Decimal | None = None,
+    chave_funcao: str | None = None,
+    modo_preco: str | None = None,
 ) -> int:
     _exigir_rascunho(conn, pid)
     cur = conn.execute(
         "INSERT INTO linhas_custo (proposta_id, funcao_id, descricao, categoria, quantidade,"
-        " valor_sugerido_centavos, valor_final_centavos, ordem, percentual)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " valor_sugerido_centavos, valor_final_centavos, ordem, percentual, chave_funcao, modo_preco)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (pid, funcao_id, descricao, categoria, quantidade,
          valor_sugerido_centavos, valor_sugerido_centavos, _ORDEM[categoria],
-         None if percentual is None else str(percentual)),
+         None if percentual is None else str(percentual), chave_funcao, modo_preco),
     )
     conn.commit()
     return cur.lastrowid
@@ -120,20 +145,27 @@ def restaurar_linha(conn: sqlite3.Connection, linha_id: int) -> None:
 
 
 def atualizar_linha_mao_de_obra(
-    conn: sqlite3.Connection, linha_id: int, quantidade: int, valor_sugerido_centavos: int
+    conn: sqlite3.Connection, linha_id: int, quantidade: int, valor_sugerido_centavos: int,
+    descricao: str | None = None, modo_preco: str | None = None, chave_funcao: str | None = None,
+    funcao_id: int | None | object = ...,
 ) -> None:
-    """Atualiza quantidade/sugerido de uma linha de mão de obra existente ao
-    re-submeter a etapa Serviços, preservando o valor final quando sobrescrito."""
+    """Atualiza uma linha de mão de obra existente ao re-submeter a etapa Serviços,
+    preservando o valor final quando sobrescrito. Descrição, modo e chave só mudam
+    quando informados."""
     _exigir_linha_editavel(conn, linha_id)
     row = conn.execute(
-        "SELECT sobrescrito, valor_final_centavos FROM linhas_custo WHERE id = ?",
+        "SELECT sobrescrito, valor_final_centavos, descricao, modo_preco, chave_funcao"
+        " FROM linhas_custo WHERE id = ?",
         (linha_id,),
     ).fetchone()
     final = row["valor_final_centavos"] if row["sobrescrito"] else valor_sugerido_centavos
+    if funcao_id is not ...:  # trocar a função do cartão também troca a da linha
+        conn.execute("UPDATE linhas_custo SET funcao_id = ? WHERE id = ?", (funcao_id, linha_id))
     conn.execute(
         "UPDATE linhas_custo SET quantidade = ?, valor_sugerido_centavos = ?,"
-        " valor_final_centavos = ? WHERE id = ?",
-        (quantidade, valor_sugerido_centavos, final, linha_id),
+        " valor_final_centavos = ?, descricao = ?, modo_preco = ?, chave_funcao = ? WHERE id = ?",
+        (quantidade, valor_sugerido_centavos, final, descricao or row["descricao"],
+         modo_preco or row["modo_preco"], chave_funcao or row["chave_funcao"], linha_id),
     )
     conn.commit()
 
@@ -186,18 +218,7 @@ def sincronizar_acessorios(conn: sqlite3.Connection, pid: int,
     """Alimentação/Transporte com quantidade = total de profissionais de mão de obra.
     Modos de diária fechada não têm acessórios automáticos."""
     row = _exigir_rascunho(conn, pid)
-    if not usa_motor_completo(row["tipo"], dados_de(row)):
-        conn.execute(
-            "DELETE FROM linhas_custo WHERE proposta_id = ? AND categoria = 'acessorio'",
-            (pid,),
-        )
-        conn.commit()
-        return
-    profs = conn.execute(
-        "SELECT COALESCE(SUM(quantidade), 0) AS n FROM linhas_custo"
-        " WHERE proposta_id = ? AND categoria = 'mao_de_obra'",
-        (pid,),
-    ).fetchone()["n"]
+    profs = sum(l["quantidade"] for l in _linhas_piso(conn, row))
     if profs == 0:
         # Sem mão de obra não há acessórios: remove linhas obsoletas
         conn.execute(
@@ -213,16 +234,25 @@ def sincronizar_acessorios(conn: sqlite3.Connection, pid: int,
 def recalcular_derivadas(conn: sqlite3.Connection, pid: int, params: Params) -> None:
     """Encargos e margem do motor, depois as linhas manuais percentuais."""
     row = _exigir_rascunho(conn, pid)
-    _recalcular_encargos_margem(conn, pid, params, usa_motor_completo(row["tipo"], dados_de(row)))
+    _recalcular_encargos_margem(conn, pid, params, row)
     _recalcular_percentuais(conn, pid)
 
 
+def _linhas_piso(conn: sqlite3.Connection, prop: sqlite3.Row) -> list[sqlite3.Row]:
+    """Mão de obra em piso mensal: só ela recebe encargos, margem e acessórios;
+    diária e semanal são preço fechado."""
+    dados = dados_de(prop)
+    return [l for l in linhas_da_proposta(conn, prop["id"])
+            if l["categoria"] == "mao_de_obra"
+            and modo_da_linha(l, prop["tipo"], dados) == "piso_mensal"]
+
+
 def _recalcular_encargos_margem(conn: sqlite3.Connection, pid: int, params: Params,
-                                motor_completo: bool) -> None:
-    """Encargos sobre mão de obra; margem sobre mão de obra + acessórios + encargos."""
-    base_mo = _soma_categoria(conn, pid, "mao_de_obra")
-    if base_mo == 0 or not motor_completo:
-        # Sem mão de obra, ou em diária fechada, não há derivadas: remove linhas obsoletas
+                                prop: sqlite3.Row) -> None:
+    """Encargos sobre a mão de obra em piso; margem sobre ela + acessórios + encargos."""
+    base_mo = sum(l["valor_final_centavos"] * l["quantidade"] for l in _linhas_piso(conn, prop))
+    if base_mo == 0:
+        # Sem mão de obra em piso não há derivadas: remove linhas obsoletas
         conn.execute(
             "DELETE FROM linhas_custo WHERE proposta_id = ? AND categoria = 'derivada'",
             (pid,),
@@ -265,6 +295,13 @@ def _recalcular_percentuais(conn: sqlite3.Connection, pid: int) -> None:
     conn.commit()
 
 
+def excluir_rascunho(conn: sqlite3.Connection, pid: int) -> None:
+    """Exclui um rascunho e suas linhas (ON DELETE CASCADE). Emitida é imutável."""
+    _exigir_rascunho(conn, pid)
+    conn.execute("DELETE FROM propostas WHERE id = ?", (pid,))
+    conn.commit()
+
+
 def duplicar_proposta(conn: sqlite3.Connection, pid: int) -> int:
     orig = obter_proposta(conn, pid)
     if orig is None:
@@ -276,11 +313,22 @@ def duplicar_proposta(conn: sqlite3.Connection, pid: int) -> int:
     novo = cur.lastrowid
     conn.execute(
         "INSERT INTO linhas_custo (proposta_id, funcao_id, descricao, categoria, quantidade,"
-        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem, percentual)"
+        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem, percentual,"
+        " chave_funcao, modo_preco)"
         " SELECT ?, funcao_id, descricao, categoria, quantidade,"
-        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem, percentual"
+        " valor_sugerido_centavos, valor_final_centavos, sobrescrito, ordem, percentual,"
+        " chave_funcao, modo_preco"
         " FROM linhas_custo WHERE proposta_id = ?",
         (novo, pid),
     )
     conn.commit()
     return novo
+
+
+def totais_por_origem(conn: sqlite3.Connection, pid: int) -> dict[str, int]:
+    """Subtotais por origem do valor; linha manual percentual conta à parte."""
+    totais = {"mao_de_obra": 0, "acessorio": 0, "derivada": 0, "manual": 0, "percentual": 0}
+    for linha in linhas_da_proposta(conn, pid):
+        chave = "percentual" if linha["percentual"] is not None else linha["categoria"]
+        totais[chave] += linha["valor_final_centavos"] * linha["quantidade"]
+    return totais
